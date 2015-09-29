@@ -1,0 +1,213 @@
+<?php
+
+require_once('affilinet.admin.inc');
+require_once('affilinet.api.inc');
+
+function affilinet_print_pre($p,$titel="") {
+	if ($titel<>"") {print $titel . ": ";} 
+	print "<pre>";
+	print_r($p);
+	print "</pre>";
+}
+
+
+function affilinet_permission() {
+  return array(
+    'access affili.net' => array(
+      'title' => t('Access affili.net'),
+    ),
+  );
+}
+
+function affilinet_menu() {
+    $items = array();
+	
+    $items['affilinet/myprograms/%'] = array(
+        'title' => t('My Programs'),
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_GetMyPrograms',
+        'access arguments' => array('access affili.net'),
+    );
+	
+    $items['affilinet/search/products'] = array(
+        'title' => t('Product search'),
+        'access arguments' => array('access affili.net'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('affilinet_SearchProducts_form'),
+    );		
+	
+	return $items;
+}
+
+
+function affilinet_GetMyPrograms($query) {
+	$result = _affilinet_GetMyPrograms($query);
+	$output = "";
+ 	foreach ($result->Programs->ProgramSummary as $row) {
+		if ($row->PartnershipStatus == "Active") {
+			// affilinet_print_pre($row);
+			//$output .= utf8_decode($row->ProgramTitle) . "<br>";
+			$output .= $row->ProgramTitle . "<br>";
+			// print "<p>" . utf8_decode($row->Description) . "</p>";
+			//print_r($row->CommissionRates);
+	  		// print_pre($row);
+		}
+	}
+	
+	return $output;
+}
+
+function affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize) {
+	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize);
+	
+	//affilinet_print_pre($result->Products->Product->Description);
+	affilinet_print_pre($result);
+	
+	$output = "<h3>Results for '" . $query . "'</h3>";
+	
+	 foreach($result->Products->Product as $product) {
+	  $output .= "<img src='" . $product->Logos->Logo->URL . "'><img src='" . $product->Images->ImageCollection->Image->URL . "'> "."&nbsp;".$product->ProductName.": ". $product->PriceInformation->DisplayPrice. "<br/>";
+	  
+	  $rates = _affilinet_GetProgramRates($product->ProgramId);
+	  if (count($rates->RateCollection) > 1) {
+		  foreach ($rates->RateCollection as $rate) {
+			  $output .= $rate->RateMode . ", " . $rate->RateName . ", " . $rate->RateValue . $rate->Unit . "<br>";
+		  } 
+	  } else {
+		  $output .= $rates->RateCollection->RateMode . ", " . $rates->RateCollection->RateName . ", " . $rates->RateCollection->RateValue . $rates->RateCollection->Unit . "<br>";
+	  }
+	 //  print_r($rates);
+	  
+	}
+	 
+	 return $output;
+}
+
+
+function affilinet_SearchProductsJSON($query){
+	$result = _affilinet_SearchProductsJSON($query);
+
+	echo '<pre>';
+	   // print_r($result);
+	echo '</pre>';
+
+	$output = "";
+	 foreach($result["Products"] as $product) {
+	  $output .= "<img src='" . $product["Images"][0][0]["URL"]. "'> " . $product["ProductId"] . "&nbsp;" . utf8_decode($product["ProductName"]) . ": " . $product["PriceInformation"]["DisplayPrice"] . "<br/>";
+	}	
+}
+
+
+function affilinet_SearchProducts_form($form, &$form_state) {
+	
+	$form['search'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Product'),
+		'#required' => TRUE,
+		'#description' => t('Search Text'),
+	);
+
+	$sortBy_options = array('ProductName' => t('Productname'), 'Score' => t('Popularity'), 'Price' => t('Price'), 'LastImported' => t('Newest'));	
+	$form['sortBy'] = array(
+		'#type' => 'radios',
+		'#title' => t('Sort order'),
+		'#options' => $sortBy_options,
+		'#default_value' => 'ProductName',
+	); 
+	
+	$sortOrder_options = array('ascending' => t('ascending'), 'descending' => t('descending'));	
+	$form['sortOrder'] = array(
+		'#type' => 'radios',
+		'#title' => t('Sort order'),
+		'#options' => $sortOrder_options,
+		'#default_value' => 'ascending',
+	); 
+	
+	$form['minPrice'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Minimum Price'),
+		'#default_value' => '0',
+	);	
+
+	$form['maxPrice'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Maximum Price'),
+		'#default_value' => '0',
+	);	
+		
+	$form['pageSize'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Page Size'),
+		'#default_value' => '10',
+	);	
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('search'),
+	);
+
+    // $form_state['storage'] is only set when the form
+    // as been submitted (see the _submit() function for
+    // more details)
+    if(isset($form_state['storage'], $form_state['storage']['search']))
+    {
+        // The form has been submitted, so we display the submitted
+        // value to the user:
+        $form['search_display'] = array
+        (
+            '#markup' => t('Results for: @value', array('@value' => $form_state['storage']['search'])),
+            '#prefix' => '<p>',
+            '#suffix' => '</p>',
+        );
+		
+        $form['result_display'] = array(
+            '#markup' => affilinet_SearchProducts($form_state['storage']['search'],
+            									  $form_state['storage']['sortBy'],
+            									  $form_state['storage']['sortOrder'],
+            									  $form_state['storage']['minPrice'],
+            									  $form_state['storage']['maxPrice'],
+            									  $form_state['storage']['pageSize']),
+            '#prefix' => '<div>',
+            '#suffix' => '</div>',
+        );
+    }
+    return $form;
+    	
+}
+
+function affilinet_SearchProducts_form_submit($form, &$form_state) {
+	// from https://www.drupal.org/node/2171993
+    // First we save the submitted data to $form_state['storage']
+    $form_state['storage']['search'] = $form_state['values']['search'];
+	$form_state['storage']['sortBy'] = $form_state['values']['sortBy'];
+	$form_state['storage']['sortOrder'] = $form_state['values']['sortOrder'];
+	$form_state['storage']['minPrice'] = $form_state['values']['minPrice'];
+	$form_state['storage']['maxPrice'] = $form_state['values']['maxPrice'];
+	$form_state['storage']['pageSize'] = $form_state['values']['pageSize'];
+	// $form_state['storage']['result'] = affilinet_SearchProducts($form_state['values']['search']);
+    // Then we set $form_state['rebuild'] to TRUE, so that the values stored in
+    // $form_state['storage'] are available in the form definition.
+        
+    $form_state['rebuild'] = TRUE;
+}
+
+/**
+<!--
+<script src="http://code.jquery.com/jquery-latest.js"></script>
+<script>
+$(function () { 
+$.ajax({ 
+dataType: "json", 
+url: "http://product-api.affili.net/V3/productservice.svc/JSON/SearchProducts", 
+data: { PublisherId: '736510', Password: 'n7u8ueQIATdC1RXcyCbn', Query: 'jeans' }, 
+success: function(data) { 
+echo(data); 
+}, 
+error: function (data, textStatus, jqXHR) { 
+console.log(textStatus); 
+} 
+}); 
+}); 
+</script>
+-->
+**/

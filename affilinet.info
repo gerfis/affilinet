@@ -1,0 +1,4 @@
+name = affili.net
+description = affili.net controls.
+core = 7.x
+package = affili.net
