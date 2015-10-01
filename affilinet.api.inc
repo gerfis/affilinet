@@ -3,12 +3,9 @@
 // affili.net API Calls
 
 // Username and passwords
-define ("USERNAME", "736510"); // the publisher ID für DE
-define ("PASSWORD", "04H4XejELLoxI69SUFIl"); // the publisher web services password
-define ("PRODPASSWORD", "n7u8ueQIATdC1RXcyCbn"); // the product web services password
-
-// define ("USERNAME", "736550"); // the publisher ID für AT
-
+define ("USERNAME", variable_get('affilinet_username_active')); // the publisher ID für DE
+define ("PASSWORD", variable_get('affilinet_password')); // the publisher web services password
+define ("PRODPASSWORD", variable_get('affilinet_prodpassword')); // the product web services password
 
 // API
 define ("WSDL_LOGON", "https://api.affili.net/V2.0/Logon.svc?wsdl");
@@ -60,29 +57,6 @@ function _affilinet_GetProgramRates($ProgramId) {
 			));
 	 
 	return $req;
-}
-
-function _affilinet_GetShopList() {
-	$SOAP_PROD_LOGON = new SoapClient(WSDL_LOGON);
-	$ProdToken      = $SOAP_PROD_LOGON->Logon(array(
-				  'Username'  => USERNAME,
-				  'Password'  => PRODPASSWORD,
-				  'WebServiceType' => 'Product'
-				  ));
-	 
-	$SOAP_PROD_REQUEST = new SoapClient(WSDL_PROD);
-	$req = $SOAP_PROD_REQUEST->GetShopList(array(
-				 'CredentialToken' => $ProdToken
-				 ));
-	 
-		foreach ($req->Shops->Shop as $row) {
-			print "<b>" . $row->Title . "</b><br>";
-			print "<p><img src='" . $row->LogoUrl . "'></p>";
-			print "<p>Produkte: " . $row->Products . "</p>";
-			print "<hr>";
-		}
-		
-		return $req;
 }
 
 function _affilinet_GetCreativeCategories($ProgramId) {
@@ -156,6 +130,64 @@ function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds)
 	return $req;
 }
 
+function _affilinet_GetShopList($query) {
+	$SOAP_PROD_LOGON = new SoapClient(WSDL_LOGON);
+	$token = $SOAP_PROD_LOGON->Logon(array(
+				  'Username'  => USERNAME,
+				  'Password'  => PRODPASSWORD,
+				  'WebServiceType' => 'Product'
+				  ));
+    // Set page setting parameters
+    $pageSettings = array(
+        'CurrentPage' => 1,
+        'PageSize' => 100
+    );
+ 
+    // Set parameters
+    $params = array(
+        'CredentialToken' => $token,
+        'PublisherId' => USERNAME, // the Id of the requesting publisher (mandatory)
+        'LogoScale' => 'Logo120',
+        'PageSettings' => $pageSettings,
+        'Query' => $query
+    );
+ 
+    // Send request to Publisher Program Service
+    $soapRequest = new SoapClient(WSDL_PROD);
+    $response = $soapRequest->GetShopList($params);
+	
+	return $response;
+}
+
+function _affilinet_GetCategoryList($shopId) {
+    // Send a request to the Logon Service to get an authentication token
+    $soapLogon = new SoapClient(WSDL_LOGON);
+    $token = $soapLogon->Logon(array(
+        'Username' => USERNAME,
+        'Password' => PRODPASSWORD,
+        'WebServiceType' => 'Product'
+    ));
+ 
+    // Set page setting parameters
+    $pageSettings = array(
+        'CurrentPage' => 1,
+        'PageSize' => 5000
+    );
+ 
+    // Set parameters
+    $params = array(
+        'CredentialToken' => $token,
+        'PublisherId' => USERNAME, // the Id of the requesting publisher (mandatory)
+        'PageSettings' => $pageSettings,
+        'ShopId' => $shopId, // use "GetShopList" to get Shop Ids (mandatory)
+    );
+ 
+    // Send request to Publisher Program Service
+    $soapRequest = new SoapClient(WSDL_PROD);
+    $response = $soapRequest->GetCategoryList($params);
+	
+	return $response;
+}
 
 function _affilinet_GetProgramCategories() {
 	$SOAP_LOGON = new SoapClient(WSDL_LOGON);
