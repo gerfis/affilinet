@@ -3,7 +3,12 @@
 // affili.net API Calls
 
 // Username and passwords
-define ("USERNAME", variable_get('affilinet_username_active')); // the publisher ID für DE
+if (isset($_COOKIE['Drupal_visitor_affilinet_username_active'])) {
+	define ("USERNAME", $_COOKIE['Drupal_visitor_affilinet_username_active'] );
+} else {
+	define ("USERNAME", variable_get('affilinet_username_active')); // the publisher ID für DE
+}
+
 define ("PASSWORD", variable_get('affilinet_password')); // the publisher web services password
 define ("PRODPASSWORD", variable_get('affilinet_prodpassword')); // the product web services password
 
@@ -130,7 +135,7 @@ function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds)
 	return $req;
 }
 
-function _affilinet_GetShopList($query) {
+function _affilinet_GetShopList($query, $currentPage=1, $pageSize=100) {
 	$SOAP_PROD_LOGON = new SoapClient(WSDL_LOGON);
 	$token = $SOAP_PROD_LOGON->Logon(array(
 				  'Username'  => USERNAME,
@@ -140,13 +145,12 @@ function _affilinet_GetShopList($query) {
     // Set page setting parameters
     $pageSettings = array(
         'CurrentPage' => 1,
-        'PageSize' => 100
+        'PageSize' => 5000
     );
  
     // Set parameters
     $params = array(
         'CredentialToken' => $token,
-        'PublisherId' => USERNAME, // the Id of the requesting publisher (mandatory)
         'LogoScale' => 'Logo120',
         'PageSettings' => $pageSettings,
         'Query' => $query
@@ -176,6 +180,7 @@ function _affilinet_GetCategoryList($shopId) {
  
     // Set parameters
     $params = array(
+    	'GetCategoryListRequestMessage' => 0,
         'CredentialToken' => $token,
         'PublisherId' => USERNAME, // the Id of the requesting publisher (mandatory)
         'PageSettings' => $pageSettings,
@@ -361,6 +366,41 @@ function _affilinet_GetProgramStatusMessages() {
 	return $response;
 }
 
+function _affilinet_SearchVoucherCodes($programId = ''){
+	// Send a request to the Logon Service to get an authentication token
+	$soapLogon = new SoapClient(WSDL_LOGON);
+	$token = $soapLogon->Logon(array(
+	    'Username'  => USERNAME,
+	    'Password'  => PASSWORD,
+	    'WebServiceType' => 'Publisher'
+	));    
+	 
+	// Set DisplaySettings parameters
+	$displaySettings = array(
+	    'CurrentPage' => 1,
+	    'PageSize' => 10,
+	    'SortBy' => 'LastChangeDate',
+	    'SortOrder' => 'Descending'
+	);
+	 
+	// Set SearchVoucherCodesRequestMessage parameters
+	$params = array(
+		'ProgramId' => $programId,
+	    'StartDate' => strtotime("now"),
+	    'EndDate' => strtotime("now"),
+	    'ProgramPartnershipStatus' => 'Accepted'
+	);
+	 
+	// Send a request to the Publisher Inbox Service  
+	$soapRequest = new SoapClient(WSDL_INBOX);
+	$response = $soapRequest->SearchVoucherCodes(array(
+	    'CredentialToken' => $token,
+	    'DisplaySettings' => $displaySettings,
+	    'SearchVoucherCodesRequestMessage' => $params
+	));
+	return $response;
+}
+
 function _affilinet_GetSubIdStatistics($subId) {
 	// Send a request to the Logon Service to get an authentication token
 	$soapLogon = new SoapClient(WSDL_LOGON);
@@ -457,7 +497,7 @@ function _affilinet_GetProgramStatistics($programIds) {
 	return $response;
 }
 
-function _affilinet_GetDailyStatistics($programId) {
+function _affilinet_GetDailyStatistics($programId,$subId, $days) {
 	// Send a request to the Logon Service to get an authentication token
 	$soapLogon = new SoapClient(WSDL_LOGON);
 	$token = $soapLogon->Logon(array(
@@ -467,13 +507,13 @@ function _affilinet_GetDailyStatistics($programId) {
 	));  
 	 
 	// Set parameters
-	$startDate = strtotime("-1 week");
+	$startDate = strtotime("-".$days." days");
 	$endDate = strtotime("today");
 	$params = array(
 	    'StartDate' => $startDate,
 	    'EndDate' => $endDate,
 	    'ProgramId' => $programId,
-	    'SubId' => '',
+	    'SubId' => $subId,
 	    'ProgramTypes' => 'All',
 	    'ValuationType' => 'DateOfRegistration'
 	);
@@ -486,6 +526,34 @@ function _affilinet_GetDailyStatistics($programId) {
 	));	
 	
 	return $response;
+}
+
+function _affilinet_GetPublisherClicksSummary($programId,$subId){
+	// Send a request to the Logon Service to get an authentication token
+	$soapLogon = new SoapClient(WSDL_LOGON);
+	$token = $soapLogon->Logon(array(
+	    'Username' => USERNAME,
+	    'Password' => PASSWORD,
+	    'WebServiceType' => 'Publisher'
+	));
+	 
+	// Set parameters          
+	$startDate = strtotime("-2 weeks");
+	$endDate = strtotime("today");
+	$params = array(
+	    'ProgramId' => $programId,
+	    'StartDate' => $startDate,
+	    'EndDate' => $endDate,
+	    'SubId' => $subId
+	);
+	 
+	// Send request to Publisher Statistics Service
+	$soapRequest = new SoapClient(WSDL_PUBSTATS);
+	$response = $soapRequest->GetPublisherClicksSummary(array(
+	    'CredentialToken' => $token,
+	    'GetPublisherClicksSummaryRequestMessage' => $params
+	));
+	return $response;	
 }
 
 function _affilinet_GetPublisherStatisticsPerClick($programId){
@@ -541,4 +609,102 @@ function _affilinet_GetPayments() {
 	    'StartDate' => $startDate
 	));
 	return $response;	
+}
+
+function _affilinet_GetSalesLeadsStatistics($progamIds, $subId){
+	// Send a request to the Logon Service to get an authentication token
+	$soapLogon = new SoapClient(WSDL_LOGON);
+	$token = $soapLogon->Logon(array(
+	    'Username' => USERNAME,
+	    'Password' => PASSWORD,
+	    'WebServiceType' => 'Publisher'
+	));
+	 
+	// Set parameters
+	$startDate = strtotime("-2 weeks");
+	$endDate = strtotime("today");
+	$params = array(
+	    'StartDate' => $startDate,
+	    'EndDate' => $endDate,
+	    'TransactionStatus' => 'All',
+	    'ProgramIds' => $progamIds,
+	    'SubId' => $subId,
+	    'ProgramTypes' => 'All',
+	    'MaximumRecords' => '1000',
+	    'ValuationType' => 'DateOfRegistration'
+	);
+	 
+	// Send a request to the Publisher Statistics Service
+	$soapRequest = new SoapClient(WSDL_PUBSTATS);
+	$response = $soapRequest->GetSalesLeadsStatistics(array(
+	    'CredentialToken' => $token,
+	    'GetSalesLeadsStatisticsRequestMessage' => $params
+	));
+	
+	return $response;
+}
+
+function _affilinet_GetTransactions($programId, $subId) {
+	// Send a request to the Logon Service to get an authentication token
+	$soapLogon = new SoapClient(WSDL_LOGON);
+	$token = $soapLogon->Logon(array(
+	    'Username'  => USERNAME,
+	    'Password'  => PASSWORD,
+	    'WebServiceType' => 'Publisher'
+	));
+	 
+	// Set page setting parameters
+	$pageSettings = array(
+	    'CurrentPage' => 1,
+	    'PageSize' => 50,
+	);
+	 
+	// Set transaction query parameters
+	$startDate = strtotime("-2 weeks");
+	$endDate = strtotime("today");
+	$rateFilter = array(
+	    'RateMode' => 'PayPerSale',
+	    'RateNumber' => 1
+	);
+	$transactionQuery = array(
+	    'StartDate' => $startDate,
+	    'EndDate' => $endDate,
+	    //'RateFilter' => $rateFilter,
+	    'TransactionStatus' => 'All',
+	    'ValuationType' => 'DateOfRegistration',
+	    'SubId' => $subId,
+	    'ProgramId' => $programId
+	);
+	 
+	// Send a request to the Publisher Statistics Service
+	$soapRequest = new SoapClient(WSDL_PUBSTATS);
+	$response = $soapRequest->GetTransactions(array(
+	    'CredentialToken' => $token,
+	    'PageSettings' => $pageSettings,
+	    'TransactionQuery' => $transactionQuery
+	));
+	
+	return $response;
+}
+
+function _affilinet_GetBasketItems(){
+	// Send a request to the Logon Service to get an authentication token
+	$soapLogon = new SoapClient(WSDL_LOGON);
+	$token = $soapLogon->Logon(array(
+	    'Username' => USERNAME,
+	    'Password' => PASSWORD,
+	    'WebServiceType' => 'Publisher'
+	));
+	 
+	// Set parameters
+	$basketId = ''; // ID of the basket you want to retrieve the items from
+	 
+	// Send request to Publisher Statistics Service
+	$soapRequest = new SoapClient(WSDL_PUBSTATS);
+	$response = $soapRequest->GetBasketItems(array(
+	    'CredentialToken' => $token,
+	    'BasketId' => $basketId
+	));
+	
+	return $response;
 }

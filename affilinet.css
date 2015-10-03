@@ -7,3 +7,22 @@
 #product_search_description li {
 	font-size:1em;
 }
+
+.affilinet_status_Open {
+	background-color:#ff0000;
+	padding: 0 0.5em;
+}
+
+.pink {
+	background-color: #edd7d7;
+	padding:1em;
+}
+
+.green {
+	background-color: #d7edd7;
+	padding:1em;
+}
+
+.yellow {
+	background-color: #eeeed6;
+}

@@ -12,6 +12,13 @@ function affilinet_print_pre($p,$titel="") {
 
 function affilinet_init() {
     drupal_add_css(drupal_get_path('module', 'affilinet') . '/affilinet.css');
+
+	if (!isset($_COOKIE['affilinet_username_active'])) {
+		setcookie('affilinet_username_active', variable_get('affilinet_username_de'), time() + 3600 * 24 * 180, '/', false, false, false);
+	}
+	if (!isset($_COOKIE['Drupal_visitor_affilinet_username_active'])) {	
+		user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_de')));
+	}
 }
 
 function affilinet_permission() {
@@ -19,7 +26,20 @@ function affilinet_permission() {
     'access affili.net' => array(
       'title' => t('Access affili.net'),
     ),
+    'access all affili.net' => array(
+      'title' => t('Access ALL affili.net'),
+    ),
   );
+}
+
+function affilinet_Tests(){
+	
+	//$tests = _affilinet_GetShopList('Alba',2,2);
+	$tests =_affilinet_GetCategoryList(0);
+	affilinet_print_pre($tests);
+	
+	return "End Tests";
+	
 }
 
 function affilinet_menu() {
@@ -33,6 +53,21 @@ function affilinet_menu() {
         'type' => MENU_CALLBACK,
     );
 	
+    $items['affilinet/tests'] = array(
+        'title' => t('Tests'),
+        'access arguments' => array('administer site configuration'),
+        'page arguments' => array(0),  
+        'page callback' => 'affilinet_Tests',
+    );
+	
+	$items['affilinet/setup'] = array(
+        'title' => t('affili.net Setup'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('affilinet_SetCountry_form'),  
+        'access arguments' => array('access affili.net'),
+        'type' => MENU_CALLBACK,
+    );
+		
     $items['affilinet/search/programs'] = array(
         'title' => t('Program search'),
         'page callback' => 'drupal_get_form',
@@ -89,10 +124,17 @@ function affilinet_menu() {
         'page callback' => 'affilinet_GetProgramInfoMessages',
     );
 	
-    $items['affilinet/statistics'] = array(
-        'title' => t('Program statistics'),
+    $items['affilinet/commissions'] = array(
+        'title' => t('Commissions'),
         'access arguments' => array('access affili.net'),
-        'page arguments' => array(0),  
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_subId_Statistics',
+    );	
+	
+    $items['affilinet/commissions/%'] = array(
+        'title' => t('Commissions'),
+        'access arguments' => array('access all affili.net'),
+        'page arguments' => array(2),  
         'page callback' => 'affilinet_subId_Statistics',
     );	
 	
@@ -101,6 +143,13 @@ function affilinet_menu() {
         'access arguments' => array('access affili.net'),
         'page arguments' => array(0),  
         'page callback' => 'affilinet_GetPayments',
+    );		
+	
+    $items['affilinet/vouchers'] = array(
+        'title' => t('Vouchers'),
+        'access arguments' => array('access affili.net'),
+        'page arguments' => array(0),  
+        'page callback' => 'affilinet_SearchVoucherCodes',
     );		
 			
 		
@@ -121,13 +170,6 @@ function affilinet_admin_config_form($form,&$form_state) {
 		'#type' => 'textfield',
 		'#title' => t('Username DE'),
 		'#default_value' => variable_get('affilinet_username_de'),
-		'#required' => TRUE
-		);
-				
-		$form['username_active'] = array(
-		'#type' => 'textfield',
-		'#title' => t('Username Active'),
-		'#default_value' => variable_get('affilinet_username_active'),
 		'#required' => TRUE
 		);
 						
@@ -156,11 +198,44 @@ function affilinet_admin_config_form($form,&$form_state) {
 function affilinet_admin_config_form_submit(&$form_state) {
 	variable_set('affilinet_username_at', $form_state['username_at']['#value']);
 	variable_set('affilinet_username_de', $form_state['username_de']['#value']);	
-	variable_set('affilinet_username_active', $form_state['username_active']['#value']);	
+		
 	variable_set('affilinet_password', $form_state['password']['#value']);
 	variable_set('affilinet_prodpassword', $form_state['prodpassword']['#value']);
 	
 	drupal_set_message(t('Your configuration has been saved.'));
+}
+
+function affilinet_SetCountry_form($form, &$form_state) {
+	
+	// affilinet_print_pre($_COOKIE);
+	
+	$current = ($_COOKIE['Drupal_visitor_affilinet_username_active'] == variable_get('affilinet_username_at')) ? 'AT' : 'DE';
+	
+	$form['country'] = array(
+		'#title' => t('Select country:'),	
+		'#type' => 'radios',
+		'#options' => array('AT' => 'Österreich', 'DE' => 'Deutschland'),
+		'#default_value' => $current  
+	);
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Submit'),
+	);	
+	
+	return $form;
+}
+
+function affilinet_SetCountry_form_submit(&$form_state) {
+	switch ($form_state['country']['#value']) {
+		case 'AT': setcookie('affilinet_username_active', variable_get('affilinet_username_at'), time() + 3600 * 24 * 180, '/', false, false, false);
+			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_at')));
+			break;
+		case 'DE': setcookie('affilinet_username_active', variable_get('affilinet_username_de'), time() + 3600 * 24 * 180, '/', false, false, false);
+			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_de')));
+			break;
+	}
+	drupal_set_message(t('Country changed to ') . $form_state['country']['#value']);
 }
 
 
@@ -248,14 +323,14 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title) {
 	return $output; 
 }
 
-function affilinet_SearchProducts(&$summary, $query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage) {
+function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage) {
 global $user;
 
 	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage);
 	$summary = $result->ProductsSummary;
 	
 	// affilinet_print_pre($result->Products->Product);
-	// affilinet_print_pre($result);
+	affilinet_print_pre($result);
 	
 	$output = "<h3>" . t('Results for ') . "'" . $query . "'</h3>";
 	
@@ -400,31 +475,44 @@ function affilinet_SearchProducts_form($form, &$form_state) {
 			'#value' => $summary->TotalRecords,
 		);			
 
+		$form['pager-start'] = array(
+			'#markup' => '<div id="pager">'
+		);
+		
 		if ($summary->TotalRecords) {
-			$form['first'] = array(
-				'#type' => 'submit',
-				'#value' => '<<',	
-				'#prefix' => '<div id="pager">'	
-			);
-					
-			$form['prev'] = array(
-				'#type' => 'submit',
-				'#value' => '<',		
-			);
+			if ($summary->CurrentPage > 1) {			
+				$form['first'] = array(
+					'#type' => 'submit',
+					'#value' => '<<',	
+					//'#prefix' => '<div id="pager">'	
+				);
+				
+				$form['prev'] = array(
+					'#type' => 'submit',
+					'#value' => '<',		
+				);
+			}
 					
 			$form['pages'] = array(
 				'#markup' => "&nbsp;" . $summary->CurrentPage . "/" . $summary->TotalPages . "&nbsp;",
 			);
 			
-			$form['next'] = array(
-				'#type' => 'submit',
-				'#value' => '>',		
-			);
-			$form['last'] = array(
-				'#type' => 'submit',
-				'#value' => '>>',	
-				'#suffix' => '</div>'	
-			);
+			if ($summary->CurrentPage < $summary->TotalPages) {
+				$form['next'] = array(
+					'#type' => 'submit',
+					'#value' => '>',		
+				);
+			
+				$form['last'] = array(
+					'#type' => 'submit',
+					'#value' => '>>',	
+					//'#suffix' => '</div>'	
+				);
+			}
+		$form['pager-end'] = array(
+			'#markup' => '</div>'
+		);
+		
 		}
 				
     } else {
@@ -559,12 +647,10 @@ global $user;
 	}
 	$output .= "<div class='ProgramDescription'>" . $result->ProgramCollection->Program->ProgramDescription . "</div>";
 	
-	$output .= "<br><div class='ProgramId'>Program ID: " . $ProgramId . "<br>";
-	$output .= "Programstatus: " . $result->ProgramCollection->Program->PartnershipStatus . "</div>";
-		
 	// Provisionen
 	$rates = _affilinet_GetProgramRates($ProgramId);
-	$output .= "<br><br><form><fieldset><legend><b>Provisionen</b></legend>";	
+	$output .= "<br><form><fieldset><legend><b>Provisionen</b></legend>";	
+	$output .= "<div class='green'>";
 	if (count($rates->RateCollection) > 1) {
 		foreach ($rates->RateCollection as $rate) {
 			$output .= $rate->RateMode . ", " . $rate->RateName . ", " . $rate->RateValue . $rate->Unit . "<br>";
@@ -572,14 +658,47 @@ global $user;
 	} else {
 		$output .= $rates->RateCollection->RateMode . ", " . $rates->RateCollection->RateName . ", " . $rates->RateCollection->RateValue . $rates->RateCollection->Unit . "<br>";
 	}
+	$output .= "</div>";
+	$output .= "</fieldset></form>";
+	
+	// Vouchers
+	$codes = affilinet_SearchVoucherCodes($ProgramId);
+	$output .= "<form><fieldset><legend><b>Gutscheine</b></legend>";	
+	$output .= "<div class='yellow'>";
+	$output .= $codes;
+	$output .= "</div>";
 	$output .= "</fieldset></form>";
 	
 	// Limitations
 	$output .= "<form><fieldset><legend><b>Richtlinien</b></legend>";
 	if (($result->ProgramCollection->Program->LimitationsComment <> '')) {
-		$output .= "<div class='LimitationsComment'>" . $result->ProgramCollection->Program->LimitationsComment . "</div>";
+		$output .= "<div class='LimitationsComment pink'>" . $result->ProgramCollection->Program->LimitationsComment . "</div>";
 	} else {$output .= t('No Limitations.'); }
 	$output .= "</fieldset></form>";
+
+	// Statistiken
+	$statistics = _affilinet_GetProgramStatistics(array($ProgramId));  // das interessanteste
+	//affilinet_print_pre($statistics);
+	$output .= "<form><fieldset><legend><b>Statistiken</b></legend>";	
+	if (isset($statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord)) {
+		$output .= t('Clickthrough: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->Clickthrough . "<br>";
+		$output .= t('Views: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->Views . "<br>";
+		$output .= t('Clicks: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->Clicks . "<br>";
+		$output .= t('Sales: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->Sales . "<br>";
+		$output .= t('Open Sales: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->OpenSales . "<br>";
+		$output .= t('Cancelled Sales: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->CancelledSales . "<br>";
+		$output .= t('Commission: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->Commission . "&euro;" . "<br>";
+		$output .= t('Open Commission: ') . $statistics->ProgramStatisticsRecords->PayPerSaleLeadStatistics->StatisticsRecords->ProgramStatisticsRecord->OpenCommission . "&euro;";
+	} else {
+		$output .= t('No statistics available for this program.');
+	}
+	$output .= "</fieldset></form>";
+		
+	// Infos
+	$output .= "<form><fieldset><legend><b>Programm Infos</b></legend>";
+	$output .= "Program ID: " . $ProgramId . "<br>";
+	$output .= "Programstatus: " . $result->ProgramCollection->Program->PartnershipStatus;
+	$output .= "</fieldset></form>";	
 	
 	// Creatives
 	$creatives = _affilinet_SearchCreatives(array($ProgramId));
@@ -621,18 +740,14 @@ global $user;
 		}
 	}
 
-
 	// Statistics
-	//$statistics = _affilinet_GetProgramStatistics(array($ProgramId));
 	//$statistics = _affilinet_GetDailyStatistics($ProgramId);
 	//$statistics = _affilinet_GetPublisherStatisticsPerClick($ProgramId);
+	//$statistics = _affilinet_GetPublisherClicksSummary($ProgramId,$user->uid);
 	//$statistics = _affilinet_GetClicksBySubIdPerDay($ProgramId);
+	
 	//affilinet_print_pre($statistics);
-	
-	//$categories = _affilinet_GetCategoryList($ProgramId);
-	//affilinet_print_pre($categories);
-	
-		
+
 	return $output;
 }
 
@@ -708,44 +823,67 @@ function affilinet_GetProgramInfoMessages() {
 	}
 	$output .= "</div>";
 
-/*	
-	drupal_add_css('.message_container .message_content {display: none;padding : 5px;}', array('type' => 'inline') );
-	drupal_add_js('$(".message_header").click(function () {
-	alert("Da da");
-    $header = $(this);
-    //getting the next element
-    $content = $header.next();
-    //open up the content needed - toggle the slide- if visible, slide up, if not slidedown.
-    $content.slideToggle(500, function () {
-        //execute this after slideToggle is done
-        //change text of header based on visibility of content div
-        $header.text(function () {
-            //change text based on condition
-            return $content.is(":visible") ? "Collapse" : "Expand";
-        });
-    });
-
-	});', array('type' => 'inline'));
-	$output = "";
-	
-	foreach ($messages->ArrayOfMessage->Messages->Message as $message) {
-		$output .= "<div class='message_container'>";		
-		$output .= "<div class='message_header'><span>" . $message->Subject . "</span></div>"; 
-		$output .= "<div class='message_content'>" . $message->Body . "</div>";
-		$output .= "</div>";
-	}	
-	
- * */
 	return $output;
 }
 
-function affilinet_subId_Statistics() {
-	//$result = _affilinet_GetClicksBySubIdPerDay();
-	// $result = _affilinet_GetSubIdStatistics(1);
-	$result = _affilinet_GetDailyStatistics();
-	affilinet_print_pre($result);
+function affilinet_subId_Statistics($uid) {
+global $user;
+
+	if($uid=='') {
+		$uid = $user->uid;
+	}
 	
-	return "";
+	//$payments = _affilinet_GetPayments();
+	//affilinet_print_pre($payments);
+		
+	//$transactions = _affilinet_GetTransactions(11757,$uid);
+	//affilinet_print_pre($transactions);
+
+	//$DailyStatistics = _affilinet_GetDailyStatistics(0,$uid,14);
+	$SalesLeadsStatistics = _affilinet_GetSalesLeadsStatistics(array(),$uid);
+	$SubIdStatistics = _affilinet_GetSubIdStatistics($uid);
+	// affilinet_print_pre($SubIdStatistics);
+	
+	if ($SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalConfirmed == '0' && $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalOpen == '0' && $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalCancelled == '0') {
+			return t('No commissions available!');
+	}
+	
+	$header = array(
+		array('data' => t('Date'),'field' => 'date'),
+		array('data' => t('Program'),'field' => 'program'),
+		array('data' => t('Price'),'field' => 'price'),
+		array('data' => t('Commission'),'field' => 'commission'),
+		array('data' => t('Confirmed'),'field' => 'confirmed'),
+		array('data' => t('Status'),'field'=>'status'),
+	);
+	
+	$rows = array();	
+	foreach ($SubIdStatistics->SubIdStatisticsRecords->Records->SubIdStatisticsRecord as $val) {
+    $rows[]=array('data'=>array(
+      'date'=> format_date(strtotime($val->Date), 'custom', 'j. F Y'),
+      'program'=>$val->ProgramTitle,
+      'price'=> array('data' => $val->Price . '&euro;', 'class' => 'affilinet_tbl_right'),
+      'commission'=> array('data' => $val->Commission . '&euro;', 'class' => 'affilinet_tbl_right'),
+      'confirmed'=> array('data' => $val->Confirmed . '&euro;', 'class' => 'affilinet_tbl_right'),
+      'status' => array('data' => $val->TransactionStatus, 'class' => 'affilinet_tbl_right affilinet_status_' . $val->TransactionStatus),
+    ));
+	}
+
+	$output = "<h3>" . t('Commissions') . "</h3>";
+	$output .= "<table>";
+	$output .= "<tr><td width='200px'>" . t('Total bought: ') . "</td><td  class='affilinet_tbl_right' width='30px'>" . $SubIdStatistics->SubIdStatisticsRecords->TotalPrice . "&euro;</td></tr>";
+	$output .= "<tr><td width='200px'>" . t('Commision confirmed: ') . "</td><td  class='affilinet_tbl_right' width='30px'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalConfirmed . "&euro;</td></tr>";	
+	$output .= "<tr><td>" . t('Commision open: ')  . "</td><td class='affilinet_tbl_right'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalOpen . "&euro;</td></tr>";
+	$output .= "<tr><td>" . t('Commision cancelled: ')  . "</td><td class='affilinet_tbl_right'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalCancelled . "&euro;</td></tr>";
+	$output .= "</table>";
+	$output .= "<p>&nbsp;</p>";
+
+	$output .= theme('table', array(
+		'header' => $header,
+		'rows' => $rows,
+	));
+	
+	return $output;
 }
 
 function affilinet_GetPayments() {
@@ -753,4 +891,33 @@ function affilinet_GetPayments() {
 	affilinet_print_pre($result);
 	
 	return "";
+}
+
+function affilinet_SearchVoucherCodes($programId = ''){
+global $user;	
+	$codes=_affilinet_SearchVoucherCodes($programId);
+	// affilinet_print_pre($codes, "Codes: ");
+
+	if (!isset($codes->VoucherCodeCollection->VoucherCodeItem)) {
+		return t('No vouchers available.');
+	} 
+	
+	$output = "<table>";
+	$output .= "<tr><th>" . t('Program') . "</th><th>" . t('Title') . "</th><th>" . t('Date') . "</th><th>" . t('Code') . "</th><th>" . t('Link') . "</th></tr>"; 
+	foreach ($codes->VoucherCodeCollection->VoucherCodeItem as $val) {
+		$program = _affilinet_GetPrograms(array($val->ProgramId), '', '');
+		
+		$pos = strpos($val->IntegrationCode, '">');
+		$link = substr($val->IntegrationCode, 0, $pos) . '&subid=' . $user->uid . '">' . substr($val->IntegrationCode,$pos+4);
+		$link = '<a target="_blank" ' . substr($link, 3);
+		$link = str_replace('<br />', '', $link);
+		
+		$output .= "<tr><td><a href='/affilinet/program/" . $program->ProgramCollection->Program->ProgramId . "'><img src='" . $program->ProgramCollection->Program->LogoURL . "' ></a></td>";
+		$output .= "<td><b>" . $val->Title . "</b></td><td>" . format_date(strtotime($val->StartDate), 'custom', 'j.m.Y') . " -<br>" . format_date(strtotime($val->EndDate), 'custom', 'j.m.Y') . "</td><td><b>" . $val->Code . "</b></td>";
+		$output .= "<td>" . $link . "</td></tr>";
+		$output .= "<tr><td colspan='4'>" . $val->Description . "</td><td><textarea>" . $link . "</textarea></td></tr>";
+		$output .= "<tr><td colspan='5'></td></tr>";
+	}
+	$output .= "</table>"; 
+	return $output;
 }
