@@ -26,3 +26,21 @@
 .yellow {
 	background-color: #eeeed6;
 }
+
+#categoryTable .form-item, .form-actions {
+    margin-bottom: 0;
+    margin-top: 0;
+}
+
+.affilinet_main_categories {
+	float: left;
+	width: 300px;
+} 
+
+.affilinet_sub_categories {
+	width: 300px;
+}
+
+.affilinet_clear {
+	clear:both;
+}

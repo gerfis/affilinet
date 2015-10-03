@@ -266,10 +266,8 @@ function _affilinet_SearchProductsJSON($query) {
 	return $json_output;
 }
 
-function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $maxPrice=0.0, $pageSize=10, $currentPage=1) {
+function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $maxPrice=0.0, $pageSize=10, $currentPage=1,$categories) {
 
-	
-	
 	$SOAP_PROD_LOGON = new SoapClient(WSDL_DATA_LOGON);
 	$ProdToken = $SOAP_PROD_LOGON->Logon(array(
 				  'Username'  => USERNAME,
@@ -290,7 +288,9 @@ function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $
 					'MinimumPrice' => $minPrice,
 					'MaximumPrice' => $maxPrice,
 					'SortBy' => $sortBy,
-					'SortOrder' => $sortOrder
+					'SortOrder' => $sortOrder,
+					'CategoryIds' => $categories,
+					'UseAffilinetCategories' => TRUE
 				 ));
 	return $req;
 }

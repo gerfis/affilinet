@@ -35,11 +35,11 @@ function affilinet_permission() {
 function affilinet_Tests(){
 	
 	//$tests = _affilinet_GetShopList('Alba',2,2);
-	$tests =_affilinet_GetCategoryList(0);
-	affilinet_print_pre($tests);
+	//$tests = affilinet_GetCategoryList(0);
+	//affilinet_print_pre($tests);
 	
-	return "End Tests";
-	
+	//return $tests;
+
 }
 
 function affilinet_menu() {
@@ -323,14 +323,14 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title) {
 	return $output; 
 }
 
-function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage) {
+function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories) {
 global $user;
 
-	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage);
+	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories);
 	$summary = $result->ProductsSummary;
 	
 	// affilinet_print_pre($result->Products->Product);
-	affilinet_print_pre($result);
+	// affilinet_print_pre($result);
 	
 	$output = "<h3>" . t('Results for ') . "'" . $query . "'</h3>";
 	
@@ -356,7 +356,7 @@ global $user;
 			
 			$output .= "<tr><td><a href='/affilinet/program/" . $product->ProgramId . "'><img src='" . $product->Logos->Logo->URL . "'></a></td>";
 			$output .= "<td><a target='_blank' href='" . $deeplink . "'><img src='" . $product->Images->ImageCollection->Image->URL . "'></a></td>"; 
-			$output .= "<td valign='top'>" . $product->ProductName . "</td>";
+			$output .= "<td valign='top'>" . $product->ProductName . "<br><br>" . $product->AffilinetCategoryPath . "</td>";
 			$output .= "<td valign='top'>" . $product->PriceInformation->DisplayPrice . "</td></tr>";
 		}
 		$output .= "</table>";		
@@ -387,7 +387,89 @@ function affilinet_SearchProductsJSON($query){
 
 
 function affilinet_SearchProducts_form($form, &$form_state) {
+			
+/*
+ *
+ * http://www.zyxware.com/articles/1829/how-to-programmatically-create-a-form-tree-in-drupal
+ * 
+ function example_form(&$form_state) {
+  foreach ($array_var as $key => $value) {
+    $form[example']['form'][$key]['text'] = array(
+      '#type' => 'textfield',
+      '#default_value' => ,
+      '#parents' => array('form', $key, 'text'),
+    );
+  }
+  return $form;
+}
+
+function example_form_submit($form, &$form_state) {
+  foreach($form_state['form'] AS $key => $value) {
+  }
+}
+ */
+ 		
+// http://passingcuriosity.com/2011/drupal-7-forms-tables/
+
+ 		
+ 			
+	$list =_affilinet_GetCategoryList(0);
+	$categories = $list->CategoryResult->Categories->Category;	
+	$parents = array();
 	
+	foreach ($categories as $a){
+		$parents[$a->ParentCategoryId][] = $a;
+	}
+	
+	
+	$form['categories']= array(
+	'#type' => 'fieldset',
+	'#title' => t('Product categories'),
+	'#tree' => TRUE,
+	'#prefix' => '<table id="categoryTable">',
+	'#suffix' => '</table>',
+	'#collapsible' => TRUE, // Added
+    '#collapsed' => FALSE,  // Added
+	
+	);
+	
+	foreach ($parents[0] as $parent) {
+		$form['categories'][$parent->CategoryId] = array('#type'=>'checkbox','#title' => $parent->Title, '#prefix'=>'<tr><td>', '#suffix'=>'</td><td>');
+		if (isset($parents[$parent->CategoryId])) {
+			foreach($parents[$parent->CategoryId] as $child) {
+				$form['categories'][$child->CategoryId] = array('#type'=>'checkbox','#title' => $child->Title);
+			}
+		}
+	}
+	
+	/*
+	$form['categories']= array(
+	'#type' => 'fieldset',
+	'#title' => t('Product categories'),
+	'#tree' => TRUE,
+	'#prefix' => '<div id="categoryTable">',
+	'#suffix' => '</div><div class="affilinet_clear"></div>',
+	'#collapsible' => TRUE, // Added
+    '#collapsed' => FALSE,  // Added
+	
+	);
+	
+	foreach ($parents[0] as $parent) {
+		if (isset($parents[$parent->CategoryId])) {
+			$childs = array();
+			foreach($parents[$parent->CategoryId] as $child) {
+				$form['categories'][$child->CategoryId] = array('#type'=>'checkbox','#title' => $child->Title, '#prefix' => '<div class="affilinet_sub_categories">', '#suffix' => '</div>');
+				$childs[] = $form['categories'][$child->CategoryId];
+			}
+		} else {
+			$form['categories'][$parent->CategoryId . 'a'] = array('#type'=>'item', '#prefix' => '<div>', '#suffix' => '</div>');
+			$childs[] = $form['categories'][$parent->CategoryId . 'a'];
+		}
+		$form['categories'][$parent->CategoryId] = array('#type'=>'checkbox','#title' => $parent->Title, '#prefix'=>'<div class="affilinet_main_categories">', '#suffix'=>$childs . '</div>');
+	}
+	
+*/
+
 	$form['search'] = array(
 		'#type' => 'textfield',
 		'#title' => t('Product'),
@@ -455,7 +537,8 @@ function affilinet_SearchProducts_form($form, &$form_state) {
             									  $form_state['storage']['minPrice'],
             									  $form_state['storage']['maxPrice'],
             									  $form_state['storage']['pageSize'],
-												  $form_state['storage']['currentPage']),
+												  $form_state['storage']['currentPage'],
+												  $form_state['storage']['categories']),
             '#prefix' => '<div>',
             '#suffix' => '</div>',
         );
@@ -529,14 +612,19 @@ function affilinet_SearchProducts_form($form, &$form_state) {
 }
 
 function affilinet_SearchProducts_form_submit($form, &$form_state) {
-	// from https://www.drupal.org/node/2171993
-    // First we save the submitted data to $form_state['storage']
+	
+	$categories = array();
+	foreach ($form_state['values']['categories'] as $key=>$val) {
+		if ($val == 1) {$categories[]=$key;}
+	}
+	
     $form_state['storage']['search'] = $form_state['values']['search'];
 	$form_state['storage']['sortBy'] = $form_state['values']['sortBy'];
 	$form_state['storage']['sortOrder'] = $form_state['values']['sortOrder'];
 	$form_state['storage']['minPrice'] = $form_state['values']['minPrice'];
 	$form_state['storage']['maxPrice'] = $form_state['values']['maxPrice'];
 	$form_state['storage']['pageSize'] = $form_state['values']['pageSize'];
+	$form_state['storage']['categories'] = $categories;
 	
 	if($form_state['values']['op'] == '<'){
 		$form_state['storage']['currentPage'] = $form_state['values']['currentPage'] - 1;
@@ -547,8 +635,6 @@ function affilinet_SearchProducts_form_submit($form, &$form_state) {
 	} else if($form_state['values']['op'] == '>>'){
 		$form_state['storage']['currentPage'] = $form_state['values']['totalPages'];				
 	}
-	
-	
 	
 	// $form_state['storage']['result'] = affilinet_SearchProducts($form_state['values']['search']);
     // Then we set $form_state['rebuild'] to TRUE, so that the values stored in
@@ -919,5 +1005,34 @@ global $user;
 		$output .= "<tr><td colspan='5'></td></tr>";
 	}
 	$output .= "</table>"; 
+	return $output;
+}
+
+function affilinet_GetCategoryList($shopId){
+	$list =_affilinet_GetCategoryList($shopId);
+	// affilinet_print_pre($list);
+	
+	$categories = $list->CategoryResult->Categories->Category;	
+	$parents = array();
+	
+	foreach ($categories as $a){
+		$parents[$a->ParentCategoryId][] = $a;
+	}
+	
+//	affilinet_print_pre($parents, "Parents");
+	
+	$output = "<table>";
+	foreach ($parents[0] as $parent) {
+		$output .= "<tr><td>" . $parent->Title . "</td><td>";
+		if (isset($parents[$parent->CategoryId])) {
+			foreach($parents[$parent->CategoryId] as $child) {
+				$output .= $child->Title . "<br>";
+			}
+		}
+		$output .= "</td></tr>";
+	}
+	$output .= "</table>";
+
+	
 	return $output;
 }
