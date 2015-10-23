@@ -19,6 +19,9 @@ function affilinet_init() {
 	if (!isset($_COOKIE['Drupal_visitor_affilinet_username_active'])) {	
 		user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_de')));
 	}
+	if (!isset($_SESSION['Drupal_visitor_affilinet_username_active'])) {	
+		$_SESSION['Drupal_visitor_affilinet_username_active'] = variable_get('affilinet_username_de');
+	}
 }
 
 function affilinet_permission() {
@@ -38,7 +41,7 @@ function affilinet_Tests(){
 	//$tests = affilinet_GetCategoryList(0);
 	//affilinet_print_pre($tests);
 	
-	//return $tests;
+	return "End Tests";
 
 }
 
@@ -148,12 +151,40 @@ function affilinet_menu() {
     $items['affilinet/vouchers'] = array(
         'title' => t('Vouchers'),
         'access arguments' => array('access affili.net'),
-        'page arguments' => array(0),  
+        'page arguments' => array(2),  
         'page callback' => 'affilinet_SearchVoucherCodes',
     );		
+	
+    $items['affilinet/vouchers/%'] = array(
+        'title' => t('Vouchers'),
+        'access arguments' => array('access affili.net'),
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_SearchVoucherCodes',
+    );	
 			
 		
 	return $items;
+}
+
+
+function affilinet_block_info(){
+	$blocks = array();
+	$blocks['affilinet_country_change'] = array(
+		'info' => t('Affilinet change country'),
+		);
+	return $blocks;
+}
+
+function affilinet_block_view($delta = ''){
+	$block = array();
+	
+	switch ($delta) {
+		case 'affilinet_country_change':
+			$block['subject'] = 'affili.net change country';
+			$block['content'] = drupal_get_form('affilinet_SetCountry_form');
+		break;
+	}
+	return $block;
 }
 
 
@@ -215,40 +246,47 @@ function affilinet_SetCountry_form($form, &$form_state) {
 		'#title' => t('Select country:'),	
 		'#type' => 'radios',
 		'#options' => array('AT' => 'Österreich', 'DE' => 'Deutschland'),
-		'#default_value' => $current  
+		'#default_value' => $current,  
 	);
 	
 	$form['submit'] = array(
 		'#type' => 'submit',
 		'#value' => t('Submit'),
+		'#suffix' => '<div style="clear:both;"><br></div>'
 	);	
+	
 	
 	return $form;
 }
 
 function affilinet_SetCountry_form_submit(&$form_state) {
-	switch ($form_state['country']['#value']) {
-		case 'AT': setcookie('affilinet_username_active', variable_get('affilinet_username_at'), time() + 3600 * 24 * 180, '/', false, false, false);
-			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_at')));
-			break;
-		case 'DE': setcookie('affilinet_username_active', variable_get('affilinet_username_de'), time() + 3600 * 24 * 180, '/', false, false, false);
-			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_de')));
-			break;
-	}
+	affilinet_SetCountry($form_state['country']['#value']);
 	drupal_set_message(t('Country changed to ') . $form_state['country']['#value']);
 }
 
+function affilinet_SetCountry($country) {
+	switch ($country) {
+		case 'AT': //setcookie('affilinet_username_active', variable_get('affilinet_username_at'), time() + 3600 * 24 * 180, '/', false, false, false);
+			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_at')));
+			$_SESSION['Drupal_visitor_affilinet_username_active'] = variable_get('affilinet_username_at');
+			break;
+		case 'DE': //setcookie('affilinet_username_active', variable_get('affilinet_username_de'), time() + 3600 * 24 * 180, '/', false, false, false);
+			user_cookie_save(array('affilinet_username_active'=>variable_get('affilinet_username_de')));
+			$_SESSION['Drupal_visitor_affilinet_username_active'] = variable_get('affilinet_username_de');
+			break;
+	}
+}
 
-function affilinet_GetPrograms($programIds, $query, $categoryIds, $title) {
+function affilinet_GetPrograms($programIds, $query, $categoryIds, $title, $currentPage = 1) {
 
-	$result = _affilinet_GetPrograms($programIds,$query,$categoryIds);
+	$result = _affilinet_GetPrograms($programIds,$query,$categoryIds,$currentPage);
 	
 	// affilinet_print_pre($result);
 	
-	$output = "<h3>" . t('Programs for ') . "'" . $title . "'</h3>";
+	$output = "<h3>" . $result->TotalResults . " " . t('Programs for ') . "'" . $title . "' " .t('found') . ":</h3>";
 	
 	if ($result->TotalResults == 0) {
-		$output .= t('No programs found for ') . "'" . $title . "'";
+		$output .= t('No programs for ') . "'" . $title . "' " . t('found');
 	} else if ($result->TotalResults == 1) {
 		$ppl_min = "";
 		$ppl_max = "";
@@ -277,14 +315,14 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title) {
 				}				
 			}
 		}
-		$output .= "<table><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+		$output .= "<table id='affilinet_programs'><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
 		$output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>";		
-		$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $result->ProgramCollection->Program->ProgramId . "'><img src='" . $result->ProgramCollection->Program->LogoURL . "' >" . $result->ProgramCollection->Program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max. "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";
+		$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $result->ProgramCollection->Program->ProgramId . "'><img align='left' src='" . $result->ProgramCollection->Program->LogoURL . "' ><br>&nbsp;" . $result->ProgramCollection->Program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max. "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";
 		$output .= "</table>";	 
 		$output .= "<p style='font-size:x-small;'>PPL = Pay per Lead<br>PPS = Pay per Sale</p>";
 
 	} else {
-		$output .= "<table><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+		$output .= "<table id='affilinet_programs'><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
 		$output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>";	
 		foreach($result->ProgramCollection->Program as $program) {
 
@@ -315,23 +353,28 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title) {
 				}				
 			}
 		}
-			$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $program->ProgramId . "'><img src='" . $program->LogoURL . "' >" . $program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max . "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";	  
+			$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $program->ProgramId . "'><img align='left' src='" . $program->LogoURL . "' ><br>&nbsp;" . $program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max . "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";	  
 		}
 		$output .= "</table>";	 
 		$output .= "<p style='font-size:x-small;'>PPL = Pay per Lead<br>PPS = Pay per Sale</p>";		
 	}
+	
 	return $output; 
 }
 
-function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories) {
+function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories,$filter) {
 global $user;
 
-	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories);
+	$result = _affilinet_SearchProducts($query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories,$filter);
 	$summary = $result->ProductsSummary;
 	
 	// affilinet_print_pre($result->Products->Product);
 	// affilinet_print_pre($result);
 	
+	if ($summary->Records == 0) {
+		return "<p>" . t('No more products found.') . "</p>";
+	}	
+
 	$output = "<h3>" . t('Results for ') . "'" . $query . "'</h3>";
 	
     $header = array(
@@ -356,7 +399,7 @@ global $user;
 			
 			$output .= "<tr><td><a href='/affilinet/program/" . $product->ProgramId . "'><img src='" . $product->Logos->Logo->URL . "'></a></td>";
 			$output .= "<td><a target='_blank' href='" . $deeplink . "'><img src='" . $product->Images->ImageCollection->Image->URL . "'></a></td>"; 
-			$output .= "<td valign='top'>" . $product->ProductName . "<br><br>" . $product->AffilinetCategoryPath . "</td>";
+			$output .= "<td valign='top'>" . $product->ProductName . "<br><br>" . t('Category') . ": " . $product->AffilinetCategoryPath . "<br>EAN: " . $product->EAN . "</td>";
 			$output .= "<td valign='top'>" . $product->PriceInformation->DisplayPrice . "</td></tr>";
 		}
 		$output .= "</table>";		
@@ -411,9 +454,10 @@ function example_form_submit($form, &$form_state) {
  		
 // http://passingcuriosity.com/2011/drupal-7-forms-tables/
 
- 		
- 			
-	$list =_affilinet_GetCategoryList(0);
+// http://e9p.net/theming-drupal-7-form-elements-table
+
+
+ 	$list =_affilinet_GetCategoryList(0);
 	$categories = $list->CategoryResult->Categories->Category;	
 	$parents = array();
 	
@@ -424,15 +468,18 @@ function example_form_submit($form, &$form_state) {
 	
 	$form['categories']= array(
 	'#type' => 'fieldset',
-	'#title' => t('Product categories'),
+	'#title' => '<b>' . t('Product categories') . '</b>',
 	'#tree' => TRUE,
-	'#prefix' => '<table id="categoryTable">',
-	'#suffix' => '</table>',
-	'#collapsible' => TRUE, // Added
-    '#collapsed' => FALSE,  // Added
+	'#collapsible' => TRUE, 
+    '#collapsed' => TRUE, 
 	
 	);
 	
+	$form['categories']['table-start'] = array(
+  		'#type' => 'item',
+  		'#prefix' => '<table id="categoryTable">'
+	);
+
 	foreach ($parents[0] as $parent) {
 		$form['categories'][$parent->CategoryId] = array('#type'=>'checkbox','#title' => $parent->Title, '#prefix'=>'<tr><td>', '#suffix'=>'</td><td>');
 		if (isset($parents[$parent->CategoryId])) {
@@ -442,65 +489,50 @@ function example_form_submit($form, &$form_state) {
 		}
 	}
 	
-	/*
-	$form['categories']= array(
-	'#type' => 'fieldset',
-	'#title' => t('Product categories'),
-	'#tree' => TRUE,
-	'#prefix' => '<div id="categoryTable">',
-	'#suffix' => '</div><div class="affilinet_clear"></div>',
-	'#collapsible' => TRUE, // Added
-    '#collapsed' => FALSE,  // Added
-	
+	$form['categories']['table-end'] = array(
+  		'#type' => 'item',
+  		'#prefix' => '</table>'
 	);
-	
-	foreach ($parents[0] as $parent) {
-		if (isset($parents[$parent->CategoryId])) {
-			$childs = array();
-			foreach($parents[$parent->CategoryId] as $child) {
-				$form['categories'][$child->CategoryId] = array('#type'=>'checkbox','#title' => $child->Title, '#prefix' => '<div class="affilinet_sub_categories">', '#suffix' => '</div>');
-				$childs[] = $form['categories'][$child->CategoryId];
-			}
-		} else {
-			$form['categories'][$parent->CategoryId . 'a'] = array('#type'=>'item', '#prefix' => '<div>', '#suffix' => '</div>');
-			$childs[] = $form['categories'][$parent->CategoryId . 'a'];
-		}
-		$form['categories'][$parent->CategoryId] = array('#type'=>'checkbox','#title' => $parent->Title, '#prefix'=>'<div class="affilinet_main_categories">', '#suffix'=>$childs . '</div>');
-	}
-	
-*/
 
 	$form['search'] = array(
 		'#type' => 'textfield',
-		'#title' => t('Product'),
-		'#required' => TRUE,
+		'#title' => t('Searchphrase'),
 		'#description' => '<span id="product_search_description">The keyword(s) you want the products to match.<br>The following search operators are supported:<ul><li>AND (both query tokens must be contained in the product, but not necessarily next to one another)</li>
 <li>OR (any of the query tokens must be contained in the product)</li>
-<li>NOT (e.g. with “ipod AND NOT nano”, you will get products, which match the query “ipod”, but at the same time don’t match “nano”)</li>
+<li>NOT (e.g. with “ipod AND NOT nano”, you will get products, which match the query “ipod”, but don’t match “nano”)</li>
 <li>"" (phrase match: all query tokens inclosed with double quotes must be contained in the found products in that order)</li>
-<li>() Parentheses, to group expressions. So you can formulate a query like this: "apple ipod" ((touch OR classic) NOT nano) AND "32 GB"</li></ul></span>',
+<li>() Parentheses, to group expressions like this: "apple ipod" ((touch OR classic) NOT nano) AND "32 GB"</li></ul></span>',
 	);
+	
+	$form['EAN'] = array(
+		'#type' => 'textfield',
+		'#title' => t('EAN Code'),
+		'#description' => t('Find products with the same EAN code.')
+	);	
 
 	$sortBy_options = array('Score' => t('Score'), 'ProductName' => t('Productname'), 'Price' => t('Price'), 'LastImported' => t('Newest'));	
 	$form['sortBy'] = array(
-		'#type' => 'radios',
+		'#type' => 'select',
 		'#title' => t('Sort By'),
 		'#options' => $sortBy_options,
 		'#default_value' => 'Score',
+		'#prefix' => '<div id="sortfields">',
 	); 
 	
 	$sortOrder_options = array('ascending' => t('ascending'), 'descending' => t('descending'));	
 	$form['sortOrder'] = array(
-		'#type' => 'radios',
+		'#type' => 'select',
 		'#title' => t('Sort order'),
 		'#options' => $sortOrder_options,
 		'#default_value' => 'descending',
+		'#suffix' => '</div><div style="clear:both;"></div>',
 	); 
 	
 	$form['minPrice'] = array(
 		'#type' => 'textfield',
 		'#title' => t('Minimum Price'),
 		'#default_value' => '0',
+		'#prefix' => '<div id="pricefields">',
 	);	
 
 	$form['maxPrice'] = array(
@@ -513,11 +545,18 @@ function example_form_submit($form, &$form_state) {
 		'#type' => 'textfield',
 		'#title' => t('Page Size'),
 		'#default_value' => '10',
+		'#suffix' => '</div><div style="clear:both;"></div>',
 	);	
 	
 	$form['submit'] = array(
 		'#type' => 'submit',
 		'#value' => t('search'),
+	);
+
+	$form['options']['reset'] = array(
+	  '#type' => 'submit',
+	  '#value' => t('Reset'),
+	  '#submit' => array('affilinet_SearchProducts_form_reset'),
 	);
 
     // $form_state['storage'] is only set when the form
@@ -529,6 +568,11 @@ function example_form_submit($form, &$form_state) {
         // value to the user:
 		$summary = array();
 		
+		$filterQuery = array();
+		if ($form_state['storage']['EAN'] != "") {
+			$filterQuery = array(array('DataField' => 'EAN','FilterValue' => $form_state['storage']['EAN']));
+		}
+		
         $form['result_display'] = array(
             '#markup' => affilinet_SearchProducts($summary,
 	       										$form_state['storage']['search'],
@@ -538,7 +582,8 @@ function example_form_submit($form, &$form_state) {
             									  $form_state['storage']['maxPrice'],
             									  $form_state['storage']['pageSize'],
 												  $form_state['storage']['currentPage'],
-												  $form_state['storage']['categories']),
+												  $form_state['storage']['categories'],
+												  $filterQuery),
             '#prefix' => '<div>',
             '#suffix' => '</div>',
         );
@@ -611,6 +656,18 @@ function example_form_submit($form, &$form_state) {
     	
 }
 
+function affilinet_SearchProducts_form_reset($form, &$form_state) {
+  $form_state['rebuild'] = FALSE;
+}
+
+function affilinet_SearchProducts_form_validate($form, &$form_state) {
+	if ($form_state['values']['search'] == "" && $form_state['values']['EAN'] == "") {
+		drupal_set_message(t('Please insert keyword or EAN code!'), 'error');
+		form_set_error('search');
+		form_set_error('EAN');
+	}	
+}
+
 function affilinet_SearchProducts_form_submit($form, &$form_state) {
 	
 	$categories = array();
@@ -624,8 +681,9 @@ function affilinet_SearchProducts_form_submit($form, &$form_state) {
 	$form_state['storage']['minPrice'] = $form_state['values']['minPrice'];
 	$form_state['storage']['maxPrice'] = $form_state['values']['maxPrice'];
 	$form_state['storage']['pageSize'] = $form_state['values']['pageSize'];
+	$form_state['storage']['EAN'] = $form_state['values']['EAN'];
 	$form_state['storage']['categories'] = $categories;
-	
+		
 	if($form_state['values']['op'] == '<'){
 		$form_state['storage']['currentPage'] = $form_state['values']['currentPage'] - 1;
 	} else if($form_state['values']['op'] == '<<' || $form_state['values']['op'] == t('search')){
@@ -648,7 +706,7 @@ function affilinet_SearchPrograms_form($form, &$form_state) {
 	
 	$form['search'] = array(
 		'#type' => 'textfield',
-		'#title' => t('Program'),
+		'#title' => t('Searchphrase'),
 	);
 	
 	$form['submit'] = array(
@@ -748,8 +806,8 @@ global $user;
 	$output .= "</fieldset></form>";
 	
 	// Vouchers
-	$codes = affilinet_SearchVoucherCodes($ProgramId);
-	$output .= "<form><fieldset><legend><b>Gutscheine</b></legend>";	
+	$codes = affilinet_SearchVoucherCodes(1, $ProgramId);
+	$output .= "<form><fieldset><legend><b>Gutscheine & Aktionen</b></legend>";	
 	$output .= "<div class='yellow'>";
 	$output .= $codes;
 	$output .= "</div>";
@@ -979,32 +1037,75 @@ function affilinet_GetPayments() {
 	return "";
 }
 
-function affilinet_SearchVoucherCodes($programId = ''){
+function affilinet_SearchVoucherCodes($currentPage = 1, $programId = ''){
 global $user;	
-	$codes=_affilinet_SearchVoucherCodes($programId);
+	if ($currentPage == 0) {$currentPage = 1;}
+	$codes=_affilinet_SearchVoucherCodes($currentPage, $programId);
 	// affilinet_print_pre($codes, "Codes: ");
-
+	
 	if (!isset($codes->VoucherCodeCollection->VoucherCodeItem)) {
 		return t('No vouchers available.');
 	} 
 	
 	$output = "<table>";
-	$output .= "<tr><th>" . t('Program') . "</th><th>" . t('Title') . "</th><th>" . t('Date') . "</th><th>" . t('Code') . "</th><th>" . t('Link') . "</th></tr>"; 
-	foreach ($codes->VoucherCodeCollection->VoucherCodeItem as $val) {
-		$program = _affilinet_GetPrograms(array($val->ProgramId), '', '');
+	$output .= "<tr><th>" . t('Program') . "</th><th>" . t('Title') . "</th><th>" . t('Date') . "</th><th>" . t('Code') . "</th><th>" . t('Link') . "</th></tr>";
+	
+	if (is_array($codes->VoucherCodeCollection->VoucherCodeItem)) {
+		$programs = array();
+		foreach ($codes->VoucherCodeCollection->VoucherCodeItem as $val) {
+			if (!isset($programs[$val->ProgramId])) {
+				$program = _affilinet_GetPrograms(array($val->ProgramId), '', '');
+				$programs[$val->ProgramId] = $program->ProgramCollection->Program->LogoURL;
+			}
+			
+			$pos = strpos($val->IntegrationCode, '">');
+			$link = substr($val->IntegrationCode, 0, $pos) . '&subid=' . $user->uid . '">' . substr($val->IntegrationCode,$pos+4);
+			$link = '<a target="_blank" ' . substr($link, 3);
+			$link = str_replace('<br />', '', $link);
+			
+			$output .= "<tr><td><a href='/affilinet/program/" . $val->ProgramId . "'><img src='" . $programs[$val->ProgramId] . "' ></a></td>";
+			$output .= "<td><b>" . $val->Title . "</b></td><td>" . format_date(strtotime($val->StartDate), 'custom', 'j.m.Y') . " -<br>" . format_date(strtotime($val->EndDate), 'custom', 'j.m.Y') . "</td><td><b>" . $val->Code . "</b></td>";
+			$output .= "<td>" . $link . "</td></tr>";
+			$output .= "<tr><td colspan='4'>" . $val->Description . "</td><td><textarea>" . $link . "</textarea></td></tr>";
+			$output .= "<tr><td colspan='5'></td></tr>";
+		}
+	} else {
+		$val = $codes->VoucherCodeCollection->VoucherCodeItem;
+		if (!isset($programs[$val->ProgramId])) {
+			$program = _affilinet_GetPrograms(array($val->ProgramId), '', '');
+			$programs[$val->ProgramId] = $program->ProgramCollection->Program->LogoURL;
+		}
 		
 		$pos = strpos($val->IntegrationCode, '">');
 		$link = substr($val->IntegrationCode, 0, $pos) . '&subid=' . $user->uid . '">' . substr($val->IntegrationCode,$pos+4);
 		$link = '<a target="_blank" ' . substr($link, 3);
 		$link = str_replace('<br />', '', $link);
 		
-		$output .= "<tr><td><a href='/affilinet/program/" . $program->ProgramCollection->Program->ProgramId . "'><img src='" . $program->ProgramCollection->Program->LogoURL . "' ></a></td>";
+		$output .= "<tr><td><a href='/affilinet/program/" . $val->ProgramId . "'><img src='" . $programs[$val->ProgramId] . "' ></a></td>";
 		$output .= "<td><b>" . $val->Title . "</b></td><td>" . format_date(strtotime($val->StartDate), 'custom', 'j.m.Y') . " -<br>" . format_date(strtotime($val->EndDate), 'custom', 'j.m.Y') . "</td><td><b>" . $val->Code . "</b></td>";
 		$output .= "<td>" . $link . "</td></tr>";
 		$output .= "<tr><td colspan='4'>" . $val->Description . "</td><td><textarea>" . $link . "</textarea></td></tr>";
-		$output .= "<tr><td colspan='5'></td></tr>";
+		$output .= "<tr><td colspan='5'></td></tr>";	
 	}
 	$output .= "</table>"; 
+	
+	$prev = intval($currentPage) - 1;
+	$next = intval($currentPage) + 1;
+	$total = intval($codes->TotalResults / 25) + 1;
+	
+	if ($programId == '') { // pager nicht auf Programmseite anzeigen
+		$output .= "<div>";
+		if ($currentPage > 1) {
+			$output .= "<a class='form-submit art-button' href='/affilinet/vouchers/1'>&lt;&lt</a>&nbsp;";
+			$output .= "<a class='form-submit art-button' href='/affilinet/vouchers/$prev'><</a>&nbsp;";
+			}
+		$output .= $currentPage . "/" . $total . "&nbsp;"; 
+		if ($currentPage < $total) {
+			$output .= "<a class='form-submit art-button' href='/affilinet/vouchers/$next'>></a>&nbsp;";
+			$output .= "<a class='form-submit art-button' href='/affilinet/vouchers/$total'>&gt;&gt;</a>";
+		}
+		$output .= "</div>";
+	}
 	return $output;
 }
 

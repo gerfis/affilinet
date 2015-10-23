@@ -106,7 +106,7 @@ function _affilinet_SearchCreatives($ProgramIds) { //muss ein array sein
 	return $req;
 }
 
-function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds) {
+function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds, $currentPage = 1) {
 	$SOAP_LOGON = new SoapClient(WSDL_LOGON);
 	$Token      = $SOAP_LOGON->Logon(array(
 	             'Username'  => USERNAME,
@@ -116,7 +116,7 @@ function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds)
 	 
 	$DisplaySettings = array (
 				'PageSize' => 100,
-				'CurrentPage' => 1,
+				'CurrentPage' => $currentPage,
 				'SortByEnum' => 'ProgramTitle'
 				);
 				
@@ -266,7 +266,7 @@ function _affilinet_SearchProductsJSON($query) {
 	return $json_output;
 }
 
-function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $maxPrice=0.0, $pageSize=10, $currentPage=1,$categories) {
+function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $maxPrice=0.0, $pageSize=10, $currentPage=1,$categories,$filter) {
 
 	$SOAP_PROD_LOGON = new SoapClient(WSDL_DATA_LOGON);
 	$ProdToken = $SOAP_PROD_LOGON->Logon(array(
@@ -290,7 +290,8 @@ function _affilinet_SearchProducts($query, $sortBy, $sortOrder, $minPrice=0.0, $
 					'SortBy' => $sortBy,
 					'SortOrder' => $sortOrder,
 					'CategoryIds' => $categories,
-					'UseAffilinetCategories' => TRUE
+					'UseAffilinetCategories' => TRUE,
+					'FilterQueries' => $filter
 				 ));
 	return $req;
 }
@@ -366,7 +367,7 @@ function _affilinet_GetProgramStatusMessages() {
 	return $response;
 }
 
-function _affilinet_SearchVoucherCodes($programId = ''){
+function _affilinet_SearchVoucherCodes($currentPage=1, $programId = ''){
 	// Send a request to the Logon Service to get an authentication token
 	$soapLogon = new SoapClient(WSDL_LOGON);
 	$token = $soapLogon->Logon(array(
@@ -377,8 +378,8 @@ function _affilinet_SearchVoucherCodes($programId = ''){
 	 
 	// Set DisplaySettings parameters
 	$displaySettings = array(
-	    'CurrentPage' => 1,
-	    'PageSize' => 10,
+	    'CurrentPage' => $currentPage,
+	    'PageSize' => 25,
 	    'SortBy' => 'LastChangeDate',
 	    'SortOrder' => 'Descending'
 	);
