@@ -367,7 +367,7 @@ function _affilinet_GetProgramStatusMessages() {
 	return $response;
 }
 
-function _affilinet_SearchVoucherCodes($currentPage=1, $programId = ''){
+function _affilinet_SearchVoucherCodes($currentPage=1, $programId = '', $query = ''){
 	// Send a request to the Logon Service to get an authentication token
 	$soapLogon = new SoapClient(WSDL_LOGON);
 	$token = $soapLogon->Logon(array(
@@ -387,6 +387,7 @@ function _affilinet_SearchVoucherCodes($currentPage=1, $programId = ''){
 	// Set SearchVoucherCodesRequestMessage parameters
 	$params = array(
 		'ProgramId' => $programId,
+		'Query' => $query,
 	    'StartDate' => strtotime("now"),
 	    'EndDate' => strtotime("now"),
 	    'ProgramPartnershipStatus' => 'Accepted'
@@ -412,7 +413,7 @@ function _affilinet_GetSubIdStatistics($subId) {
 	));
 	 
 	// Set parameters
-	$startDate = strtotime("-2 weeks");
+	$startDate = strtotime("-1 year");
 	$endDate = strtotime("today");
 	$programIds = array('0');
 	$params = array(
@@ -622,7 +623,7 @@ function _affilinet_GetSalesLeadsStatistics($progamIds, $subId){
 	));
 	 
 	// Set parameters
-	$startDate = strtotime("-2 weeks");
+	$startDate = strtotime("-1 year");
 	$endDate = strtotime("today");
 	$params = array(
 	    'StartDate' => $startDate,

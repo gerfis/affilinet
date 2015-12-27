@@ -162,7 +162,14 @@ function affilinet_menu() {
         'page callback' => 'affilinet_SearchVoucherCodes',
     );	
 			
-		
+    $items['affilinet/search/vouchers'] = array(
+        'title' => t('Program search'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('affilinet_SearchVoucherCodes_form'),  
+        'access arguments' => array('access affili.net'),
+    );
+	
+			
 	return $items;
 }
 
@@ -1037,10 +1044,45 @@ function affilinet_GetPayments() {
 	return "";
 }
 
-function affilinet_SearchVoucherCodes($currentPage = 1, $programId = ''){
+
+function affilinet_SearchVoucherCodes_form($form, &$form_state) {
+	
+	$form['search'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Searchphrase'),
+	);
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('search'),
+	);
+
+    // $form_state['storage'] is only set when the form
+    // as been submitted (see the _submit() function for
+    // more details)
+    if(isset($form_state['storage'], $form_state['storage']['search']))
+    {
+        $form['result_display'] = array(
+            '#markup' => affilinet_SearchVoucherCodes(1,'',$form_state['storage']['search']),
+            '#prefix' => '<div>',
+            '#suffix' => '</div>',
+        );
+    }
+    return $form;
+    	
+}
+
+function affilinet_SearchVoucherCodes_form_submit($form, &$form_state) {
+    $form_state['storage']['search'] = $form_state['values']['search'];
+    $form_state['rebuild'] = TRUE;
+}
+
+
+function affilinet_SearchVoucherCodes($currentPage = 1, $programId = '', $query = ''){
 global $user;	
+
 	if ($currentPage == 0) {$currentPage = 1;}
-	$codes=_affilinet_SearchVoucherCodes($currentPage, $programId);
+	$codes=_affilinet_SearchVoucherCodes($currentPage, $programId, $query);
 	// affilinet_print_pre($codes, "Codes: ");
 	
 	if (!isset($codes->VoucherCodeCollection->VoucherCodeItem)) {
