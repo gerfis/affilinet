@@ -106,7 +106,7 @@ function _affilinet_SearchCreatives($ProgramIds) { //muss ein array sein
 	return $req;
 }
 
-function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds, $currentPage = 1) {
+function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds, $currentPage = 1, $pageSize = 100) {
 	$SOAP_LOGON = new SoapClient(WSDL_LOGON);
 	$Token      = $SOAP_LOGON->Logon(array(
 	             'Username'  => USERNAME,
@@ -115,7 +115,7 @@ function _affilinet_GetPrograms($ProgramIds, $SearchString, $ProgramCategoryIds,
 	             ));
 	 
 	$DisplaySettings = array (
-				'PageSize' => 100,
+				'PageSize' => $pageSize,
 				'CurrentPage' => $currentPage,
 				'SortByEnum' => 'ProgramTitle'
 				);
@@ -411,7 +411,7 @@ function _affilinet_GetSubIdStatistics($subId) {
 	    'Password' => PASSWORD,
 	    'WebServiceType' => 'Publisher'
 	));
-	 
+
 	// Set parameters
 	$startDate = strtotime("-1 year");
 	$endDate = strtotime("today");
@@ -598,7 +598,7 @@ function _affilinet_GetPayments() {
 	));                        
 	 
 	// Set parameters
-	$startDate = strtotime("-1 week");
+	$startDate = strtotime("-1 year");
 	$endDate = strtotime("today");
 	$publisherId = USERNAME; // the publisher ID you want to retrieve payments for (mandatory)
 	 
@@ -662,7 +662,7 @@ function _affilinet_GetTransactions($programId, $subId) {
 	);
 	 
 	// Set transaction query parameters
-	$startDate = strtotime("-2 weeks");
+	$startDate = strtotime("-1 year");
 	$endDate = strtotime("today");
 	$rateFilter = array(
 	    'RateMode' => 'PayPerSale',

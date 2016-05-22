@@ -1,16 +1,38 @@
 /* affilinet.css */
 
+.affilinet-table th,
+.affilinet-table td {
+	border:1px solid #999;
+	padding:5px;
+}
+
 .affilinet_tbl_right {
 	text-align: right !important;
+}
+
+.affilinet-table th {
+	text-align:center;
+	font-weight:bold;
+}
+
+#product_search_description ul {
+	list-style:disc inside;	
 }
 
 #product_search_description li {
 	font-size:1em;
 }
 
+
 .affilinet_status_Open {
 	background-color:#ff0000;
-	padding: 0 0.5em;
+	padding: 0.5em;
+}
+
+.affilinet_status_Confirmed {
+	background-color:green;
+	color:white;
+	padding: 0.5em;
 }
 
 .pink {

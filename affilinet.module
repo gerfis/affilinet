@@ -1,4 +1,5 @@
 <?php
+// affili.net control module
 
 require_once('affilinet.admin.inc');
 require_once('affilinet.api.inc');
@@ -105,7 +106,35 @@ function affilinet_menu() {
         'page arguments' => array(2,3),  
         'page callback' => 'affilinet_GetProgramListByCategory',
     );
-	
+
+    $items['affilinet/allprograms'] = array(
+        'title' => t('All programs'),
+        'access arguments' => array('access affili.net'),
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_GetAllPrograms',
+    );
+    	
+    $items['affilinet/allprograms/%'] = array(
+        'title' => t('All programs'),
+        'access arguments' => array('access affili.net'),
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_GetAllPrograms',
+    );
+        
+    $items['cashbacks'] = array(
+        'title' => t('Cashback programs'),
+        'page arguments' => array(1),  
+        'access arguments' => array('access content'),        
+        'page callback' => 'affilinet_GetCashbackPrograms',
+    );     
+    
+    $items['cashbacks/%'] = array(
+        'title' => t('Cashback programs'),
+        'page arguments' => array(1),  
+        'access arguments' => array('access content'),        
+        'page callback' => 'affilinet_GetCashbackPrograms',
+    );        
+            
     $items['affilinet/shoplist/%'] = array(
         'title' => t('Shop list'),
         'access arguments' => array('access affili.net'),
@@ -128,19 +157,26 @@ function affilinet_menu() {
     );
 	
     $items['affilinet/commissions'] = array(
-        'title' => t('Commissions'),
+        'title' => t('Program commissions'),
         'access arguments' => array('access affili.net'),
         'page arguments' => array(2),  
         'page callback' => 'affilinet_subId_Statistics',
     );	
 	
     $items['affilinet/commissions/%'] = array(
-        'title' => t('Commissions'),
+        'title' => t('Program commissions'),
         'access arguments' => array('access all affili.net'),
         'page arguments' => array(2),  
         'page callback' => 'affilinet_subId_Statistics',
     );	
 	
+    $items['affilinet/commissions/demo'] = array(
+        'title' => t('Program commissions'),
+        'access arguments' => array('access content'),
+        'page arguments' => array(2),  
+        'page callback' => 'affilinet_subId_Statistics',
+    );  
+        
     $items['affilinet/payments'] = array(
         'title' => t('Payments'),
         'access arguments' => array('access affili.net'),
@@ -163,12 +199,12 @@ function affilinet_menu() {
     );	
 			
     $items['affilinet/search/vouchers'] = array(
-        'title' => t('Program search'),
+        'title' => t('Vouchers search'),
         'page callback' => 'drupal_get_form',
         'page arguments' => array('affilinet_SearchVoucherCodes_form'),  
         'access arguments' => array('access affili.net'),
     );
-	
+	 
 			
 	return $items;
 }
@@ -284,13 +320,14 @@ function affilinet_SetCountry($country) {
 	}
 }
 
-function affilinet_GetPrograms($programIds, $query, $categoryIds, $title, $currentPage = 1) {
+function affilinet_GetPrograms($programIds, $query, $categoryIds, $title, $currentPage = 1, &$totalResults = 0) {
 
 	$result = _affilinet_GetPrograms($programIds,$query,$categoryIds,$currentPage);
 	
 	// affilinet_print_pre($result);
-	
-	$output = "<h3>" . $result->TotalResults . " " . t('Programs for ') . "'" . $title . "' " .t('found') . ":</h3>";
+	$totalResults = $result->TotalResults;
+    
+	$output = "<h3>" . $totalResults . " " . t('Programs for ') . "'" . $title . "' " .t('found') . ":</h3>";
 	
 	if ($result->TotalResults == 0) {
 		$output .= t('No programs for ') . "'" . $title . "' " . t('found');
@@ -322,14 +359,14 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title, $curre
 				}				
 			}
 		}
-		$output .= "<table id='affilinet_programs'><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+		$output .= "<table id='affilinet_programs' class='affilinet-table'><tr><th rowspan='2' colspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
 		$output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>";		
-		$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $result->ProgramCollection->Program->ProgramId . "'><img align='left' src='" . $result->ProgramCollection->Program->LogoURL . "' ><br>&nbsp;" . $result->ProgramCollection->Program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max. "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";
+		$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $result->ProgramCollection->Program->ProgramId . "'><img align='left' src='" . $result->ProgramCollection->Program->LogoURL . "' ><a></td><td><a href='/affilinet/program/" . $result->ProgramCollection->Program->ProgramId . "'>" . $result->ProgramCollection->Program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max. "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";
 		$output .= "</table>";	 
 		$output .= "<p style='font-size:x-small;'>PPL = Pay per Lead<br>PPS = Pay per Sale</p>";
 
 	} else {
-		$output .= "<table id='affilinet_programs'><tr><th rowspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+		$output .= "<table id='affilinet_programs' class='affilinet-table'><tr><th rowspan='2' colspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
 		$output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>";	
 		foreach($result->ProgramCollection->Program as $program) {
 
@@ -360,13 +397,99 @@ function affilinet_GetPrograms($programIds, $query, $categoryIds, $title, $curre
 				}				
 			}
 		}
-			$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $program->ProgramId . "'><img align='left' src='" . $program->LogoURL . "' ><br>&nbsp;" . $program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max . "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";	  
+			$output .= "<tr><td valign='top'><a href='/affilinet/program/" . $program->ProgramId . "'><img align='left' src='" . $program->LogoURL . "' ></a></td><td><a href='/affilinet/program/" . $program->ProgramId . "'>" . $program->ProgramTitle . "</a></td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max . "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";	  
 		}
 		$output .= "</table>";	 
-		$output .= "<p style='font-size:x-small;'>PPL = Pay per Lead<br>PPS = Pay per Sale</p>";		
+		$output .= "<p style='font-size:x-small;'>" . t("PPL = Pay per Lead") . "<br>" . t("PPS = Pay per Sale") . "</p>";		
 	}
 	
 	return $output; 
+}
+
+function affilinet_GetCashbacks($programIds, $query, $categoryIds, $title, $currentPage = 1, &$totalResults = 0) {
+
+    $result = _affilinet_GetPrograms($programIds,$query,$categoryIds,$currentPage);
+    
+    // affilinet_print_pre($result);
+    $totalResults = $result->TotalResults;
+    
+    $output = "<h3>" . $totalResults . " " . t('Cashback programs ') . " " . t('found') . ":</h3>";
+    
+    if ($result->TotalResults == 0) {
+        $output .= t('No programs for ') . "'" . $title . "' " . t('found');
+    } else if ($result->TotalResults == 1) {
+        $ppl_min = "";
+        $ppl_max = "";
+        $pps_min = "";
+        $pps_max = "";
+        if (isset($program->CommissionTypes->CommissionTypeDetail)) {       
+            if (is_array($result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail)) {
+                foreach ($result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail as $commission) {
+                    if ($commission->CommissionTypeEnum == 'Sale') {
+                        $pps_min = $commission->VolumeMin . '%';
+                        $pps_max = $commission->VolumeMax . '%';
+                    }
+                    if ($commission->CommissionTypeEnum == 'Lead') {
+                        $ppl_min = $commission->VolumeMin . '&euro;';
+                        $ppl_max = $commission->VolumeMax . '&euro;';
+                    }               
+                } 
+            } else {
+                if ($result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->CommissionTypeEnum == 'Sale') {
+                    $pps_min = $result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->VolumeMin;
+                    $pps_max = $result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->VolumeMax;
+                }
+                if ($result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->CommissionTypeEnum == 'Lead') {
+                    $ppl_min = $result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->VolumeMin;
+                    $ppl_max = $result->ProgramCollection->Program->CommissionTypes->CommissionTypeDetail->VolumeMax;
+                }               
+            }
+        }
+        $output .= "<table id='affilinet_programs' class='affilinet-table'><tr><th rowspan='2' colspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+        $output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>";     
+        $output .= "<tr><td valign='top'><img align='left' src='" . $result->ProgramCollection->Program->LogoURL . "' ></td><td>" . $result->ProgramCollection->Program->ProgramTitle . "</td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max. "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";
+        $output .= "</table>";   
+        $output .= "<p style='font-size:x-small;'>PPL = Pay per Lead<br>PPS = Pay per Sale</p>";
+
+    } else {
+        $output .= "<table id='affilinet_programs' class='affilinet-table'><tr><th rowspan='2' colspan='2'>" . t('Program') . "</th><th colspan='2'>PPL &euro;</th><th colspan='2'>PPS %</th></tr>";
+        $output .= "<tr><th>min</th><th>max</th><th>min</th><th>max</th></tr>"; 
+        foreach($result->ProgramCollection->Program as $program) {
+
+        $ppl_min = "";
+        $ppl_max = "";
+        $pps_min = "";
+        $pps_max = "";
+        if (isset($program->CommissionTypes->CommissionTypeDetail)) {
+            if (is_array($program->CommissionTypes->CommissionTypeDetail)) {
+                foreach ($program->CommissionTypes->CommissionTypeDetail as $commission) {
+                    if ($commission->CommissionTypeEnum == 'Sale') {
+                        $pps_min = $commission->VolumeMin . '%';
+                        $pps_max = $commission->VolumeMax . '%';
+                    }
+                    if ($commission->CommissionTypeEnum == 'Lead') {
+                        $ppl_min = $commission->VolumeMin . '&euro;';
+                        $ppl_max = $commission->VolumeMax . '&euro;';
+                    }               
+                } 
+            } else {
+                if ($program->CommissionTypes->CommissionTypeDetail->CommissionTypeEnum == 'Sale') {
+                    $pps_min = $program->CommissionTypes->CommissionTypeDetail->VolumeMin . '%';
+                    $pps_max = $program->CommissionTypes->CommissionTypeDetail->VolumeMax . '%';
+                }
+                if ($program->CommissionTypes->CommissionTypeDetail->CommissionTypeEnum == 'Lead') {
+                    $ppl_min = $program->CommissionTypes->CommissionTypeDetail->VolumeMin . '&euro;';
+                    $ppl_max = $program->CommissionTypes->CommissionTypeDetail->VolumeMax . '&euro;';
+                }               
+            }
+        }
+            $output .= "<tr><td valign='top'><img align='left' src='" . $program->LogoURL . "' ></td><td>" . $program->ProgramTitle . "</td><td class='affilinet_tbl_right'>" . $ppl_min . "</td><td class='affilinet_tbl_right'>" . $ppl_max . "</td><td class='affilinet_tbl_right'>" . $pps_min . "</td><td class='affilinet_tbl_right'>". $pps_max . "</td></tr>";      
+        }
+        $output .= "</table>";   
+        $output .= "<p style='font-size:x-small;'>" . t("PPL = Pay per Lead") . "<br>" . t("PPS = Pay per Sale") . "</p>";      
+    }
+    
+    return $output; 
 }
 
 function affilinet_SearchProducts(&$summary,$query,$sortBy,$sortOrder,$minPrice,$maxPrice,$pageSize,$currentPage,$categories,$filter) {
@@ -395,7 +518,7 @@ global $user;
 	$categories = array();
 	
 	if ($summary->TotalRecords) {
-		$output .= "<table id='ProductsFound'>";
+		$output .= "<table id='ProductsFound' class='affilinet-table'>";
 		$output .= "<tr><th>" . t('Program') . "</th><th>" . t('Image') . "</th><th>" . t('Product') . "</th><th>" . t('Price') . "</th></tr>";
 		foreach($result->Products->Product as $product) {
 			$categories[] = $product->AffilinetCategoryPath;
@@ -484,7 +607,7 @@ function example_form_submit($form, &$form_state) {
 	
 	$form['categories']['table-start'] = array(
   		'#type' => 'item',
-  		'#prefix' => '<table id="categoryTable">'
+  		'#prefix' => '<table id="categoryTable" class="affilinet-table">'
 	);
 
 	foreach ($parents[0] as $parent) {
@@ -745,23 +868,36 @@ function affilinet_GetProgramCategories() {
 	
 	$result = _affilinet_GetProgramCategories();
 	
-	// affilinet_print_pre($result);
-	
 	$output = "<h4><a href='/affilinet/search/programs'>" . t("Search programs HERE ...") . "</a></h4>";
 	
-	$output .= "<table><tr><th>" . t('Main category') . "</th><th>" . t('Sub category') . "</th></tr>";
+	$output .= "<table class='affilinet-table'><tr><th>" . t('Main category') . "</th><th>" . t('Sub category') . "</th></tr>";
 	
 	if (isset($result->RootCategories->ProgramCategory)) {
 		foreach ($result->RootCategories->ProgramCategory as $category) {
-			$output .= "<tr><td valign='top'><a href='/affilinet/programsbycategory/" . $category->CategoryId . "/" . str_replace("/", " & ", $category->Name) . "'>" . $category->Name . "</a></td><td>";
-			if (isset($category->SubCategories->ProgramCategory)) {
-				foreach ($category->SubCategories->ProgramCategory as $subCategory) {
-					if (isset($subCategory->Name)){
-						$output .= "<div><a href='/affilinet/programsbycategory/" . $subCategory->CategoryId . "/" . str_replace("/", " & ", $subCategory->Name) . "'>" . $subCategory->Name . "</a></div>";
-					} 
-				}
-			}
-			$output .= "</td></tr>";
+		    $programs = $category->Programs - 1;
+            // $results = _affilinet_GetPrograms('','',array($category->CategoryId),1);
+            if ($programs > 0) {
+                
+    		    $output .= "<tr><td valign='top'><a href='/affilinet/programsbycategory/" . $category->CategoryId . "/" . str_replace("/", " & ", $category->Name) . "'>" . $category->Name . "</a></td><td>";
+    			if (isset($category->SubCategories->ProgramCategory) && is_array($category->SubCategories->ProgramCategory)) {
+    				foreach ($category->SubCategories->ProgramCategory as $subCategory) {
+    				    $subprograms = $subCategory->Programs - 1;
+    					if (isset($subCategory->Name) && $subprograms > 0){
+    						$output .= "<div><a href='/affilinet/programsbycategory/" . $subCategory->CategoryId . "/" . str_replace("/", " & ", $subCategory->Name) . "'>" . $subCategory->Name . "</a></div>";
+    					} 
+    				}
+    			} else {
+                    if (isset($category->SubCategories)) {
+                        foreach ($category->SubCategories as $subCategory) {
+                            $subprograms = $subCategory->Programs - 1;
+                            if (isset($subCategory->Name) && $subprograms > 0){
+                                $output .= "<div><a href='/affilinet/programsbycategory/" . $subCategory->CategoryId . "/" . str_replace("/", " & ", $subCategory->Name) . "'>" . $subCategory->Name . "</a></div>";
+                            } 
+                        }
+                    }    			    
+    			}
+			   $output .= "</td></tr>";
+            }            
 		}
 	}
 	$output .= "</table>";
@@ -780,15 +916,78 @@ function affilinet_GetShopList($query) {
 
 
 function affilinet_GetProgramListByCategory($CategoryID,$CategoryName = "") {
-
 	return affilinet_GetPrograms('','',array($CategoryID),$CategoryName); 
+}
+
+function affilinet_GetAllPrograms($page) {
+  
+    if ($page == "") {
+        $page = 1;
+    }   
+    
+    $output = "<h4><a href='/affilinet/search/programs'>" . t("Search programs HERE ...") . "</a></h4>";
+    
+    $output .= affilinet_GetPrograms('','','','Alle',$page,$totalResults);
+    $pages = 1 + ($totalResults - ($totalResults % 100)) / 100;
+
+    $nextpage = $page + 1;
+    $prevpage = $page - 1;
+    
+    if ($pages == 1) { // nur eine Seite
+        return $output;
+    }
+    
+    if ($page == 1 && $page < $pages) {
+        $output .= "<a href='/affilinet/allprograms/2'>Weiter >></a>";
+    } else {
+        if ($page == $pages) {
+        $output .= "<a href='/affilinet/allprograms/" . $nextpage ."'><< Zurück</a>";
+    } else { 
+        $output .= "<a href='/affilinet/allprograms/" . $prevpage ."'><< Zurück</a> | ";
+        $output .= "<a href='/affilinet/allprograms/" . $nextpage ."'>Weiter >></a>";
+    }
+    }
+      
+    return $output;
+}
+
+function affilinet_GetCashbackPrograms($page) {
+  
+    if ($page == "") {
+        $page = 1;
+    }   
+    
+    $output = "";
+    
+    $output .= affilinet_GetCashbacks('','','','Alle',$page,$totalResults);
+    $pages = 1 + ($totalResults - ($totalResults % 100)) / 100;
+
+    $nextpage = $page + 1;
+    $prevpage = $page - 1;
+    
+    if ($pages == 1) { // nur eine Seite
+        return $output;
+    }
+    
+    if ($page == 1 && $page < $pages) {
+        $output .= "<a href='/cashbacks/2'>Weiter >></a>";
+    } else {
+        if ($page == $pages) {
+        $output .= "<a href='/cashbacks/" . $nextpage ."'><< Zurück</a>";
+    } else { 
+        $output .= "<a href='/cashbacks/" . $prevpage ."'><< Zurück</a> | ";
+        $output .= "<a href='/cashbacks/" . $nextpage ."'>Weiter >></a>";
+    }
+    }
+      
+    return $output;
 }
 
 function affilinet_GetProgram($ProgramId) {
 global $user;
 
 	$result = _affilinet_GetPrograms(array($ProgramId), '', '');
-	// affilinet_print_pre($result);
+	//dpm($result);
 
 	drupal_set_title($result->ProgramCollection->Program->ProgramTitle);
 	
@@ -984,45 +1183,86 @@ global $user;
 		$uid = $user->uid;
 	}
 	
+    if ($uid=='alle') {
+        $uid = '';
+    }
+    
+    if ($uid=='demo'){
+        $uid='1';
+        drupal_set_title("Cashback Provisionen Demo");
+    }
+    
 	//$payments = _affilinet_GetPayments();
-	//affilinet_print_pre($payments);
+	//dpm($payments);
 		
 	//$transactions = _affilinet_GetTransactions(11757,$uid);
-	//affilinet_print_pre($transactions);
+	//dpm($transactions);
 
 	//$DailyStatistics = _affilinet_GetDailyStatistics(0,$uid,14);
 	$SalesLeadsStatistics = _affilinet_GetSalesLeadsStatistics(array(),$uid);
 	$SubIdStatistics = _affilinet_GetSubIdStatistics($uid);
-	// affilinet_print_pre($SubIdStatistics);
+	//dpm($SubIdStatistics);
 	
 	if ($SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalConfirmed == '0' && $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalOpen == '0' && $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalCancelled == '0') {
-			return t('No commissions available!');
-	}
+			$output = t('No commissions available!') . "<br>" . t('Wrong country selected?');
+			$output .= "<p>&nbsp;</p><p><a class='button' href='/affilinet/commissions/demo'>" . t('Show demo commissions') . "</a>";
+            return $output;
+	} 
 	
 	$header = array(
+	    array('data' => t('Member'),'field' => 'user'),
 		array('data' => t('Date'),'field' => 'date'),
 		array('data' => t('Program'),'field' => 'program'),
 		array('data' => t('Price'),'field' => 'price'),
 		array('data' => t('Commission'),'field' => 'commission'),
 		array('data' => t('Confirmed'),'field' => 'confirmed'),
+        array('data' => t('Am'),'field' => 'checkdate'),
 		array('data' => t('Status'),'field'=>'status'),
 	);
 	
 	$rows = array();	
-	foreach ($SubIdStatistics->SubIdStatisticsRecords->Records->SubIdStatisticsRecord as $val) {
-    $rows[]=array('data'=>array(
-      'date'=> format_date(strtotime($val->Date), 'custom', 'j. F Y'),
-      'program'=>$val->ProgramTitle,
-      'price'=> array('data' => $val->Price . '&euro;', 'class' => 'affilinet_tbl_right'),
-      'commission'=> array('data' => $val->Commission . '&euro;', 'class' => 'affilinet_tbl_right'),
-      'confirmed'=> array('data' => $val->Confirmed . '&euro;', 'class' => 'affilinet_tbl_right'),
-      'status' => array('data' => $val->TransactionStatus, 'class' => 'affilinet_tbl_right affilinet_status_' . $val->TransactionStatus),
-    ));
-	}
-
+    if (is_array($SubIdStatistics->SubIdStatisticsRecords->Records->SubIdStatisticsRecord)) {
+    	foreach ($SubIdStatistics->SubIdStatisticsRecords->Records->SubIdStatisticsRecord as $val) {
+    	    //dpm($val);
+    	    if (isset($val->CheckDate) && ($val->CheckDate != '0001-01-01T00:00:00')) {
+    	       $checkdate = format_date(strtotime($val->CheckDate), 'custom', 'j. F Y');
+            } else {
+                $checkdate = t("Not confirmed");
+            }
+            $rows[]=array('data'=>array(
+              'user' => user_load($val->SubId)->name,
+              'date'=> format_date(strtotime($val->Date), 'custom', 'j. F Y'),
+              'program'=>'<a href="/affilinet/program/' . $val->ProgramId . '">' . $val->ProgramTitle . '</a>',
+              'price'=> array('data' => $val->Price . '&euro;', 'class' => 'affilinet_tbl_right'),
+              'commission'=> array('data' => $val->Commission . '&euro;', 'class' => 'affilinet_tbl_right'),
+              'confirmed'=> array('data' => $val->Confirmed . '&euro;', 'class' => 'affilinet_tbl_right'),
+              'checkdate'=> $checkdate,
+              'status' => array('data' => t($val->TransactionStatus), 'class' => 'affilinet_tbl_right affilinet_status_' . $val->TransactionStatus),
+            ));
+    	}
+    } else { // nur 1 Ergebnis:
+        foreach ($SubIdStatistics->SubIdStatisticsRecords->Records as $val) {
+        //dpm($val);
+        if (isset($val->CheckDate) && ($val->CheckDate != '0001-01-01T00:00:00')) {
+           $checkdate = format_date(strtotime($val->CheckDate), 'custom', 'j. F Y');
+        } else {
+            $checkdate = t("Not checked");
+        }
+        $rows[]=array('data'=>array(
+          'user' => user_load($val->SubId)->name,
+          'date'=> format_date(strtotime($val->Date), 'custom', 'j. F Y'),
+          'checkdate'=> $checkdate,
+          'program'=>$val->ProgramTitle,
+          'price'=> array('data' => $val->Price . '&euro;', 'class' => 'affilinet_tbl_right'),
+          'commission'=> array('data' => $val->Commission . '&euro;', 'class' => 'affilinet_tbl_right'),
+          'confirmed'=> array('data' => $val->Confirmed . '&euro;', 'class' => 'affilinet_tbl_right'),
+          'status' => array('data' => $val->TransactionStatus, 'class' => 'affilinet_tbl_right affilinet_status_' . $val->TransactionStatus),
+        ));
+    }        
+    }
 	$output = "<h3>" . t('Commissions') . "</h3>";
-	$output .= "<table>";
-	$output .= "<tr><td width='200px'>" . t('Total bought: ') . "</td><td  class='affilinet_tbl_right' width='30px'>" . $SubIdStatistics->SubIdStatisticsRecords->TotalPrice . "&euro;</td></tr>";
+	$output .= "<table class='affilinet-table'>";
+	// $output .= "<tr><td width='200px'>" . t('Total bought: ') . "</td><td  class='affilinet_tbl_right' width='30px'>" . $SubIdStatistics->SubIdStatisticsRecords->TotalPrice . "&euro;</td></tr>";
 	$output .= "<tr><td width='200px'>" . t('Commision confirmed: ') . "</td><td  class='affilinet_tbl_right' width='30px'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalConfirmed . "&euro;</td></tr>";	
 	$output .= "<tr><td>" . t('Commision open: ')  . "</td><td class='affilinet_tbl_right'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalOpen . "&euro;</td></tr>";
 	$output .= "<tr><td>" . t('Commision cancelled: ')  . "</td><td class='affilinet_tbl_right'>" . $SalesLeadsStatistics->SalesLeadsStatisticsRecords->TotalCancelled . "&euro;</td></tr>";
@@ -1089,7 +1329,7 @@ global $user;
 		return t('No vouchers available.');
 	} 
 	
-	$output = "<table>";
+	$output = "<table class='affilinet-table'>";
 	$output .= "<tr><th>" . t('Program') . "</th><th>" . t('Title') . "</th><th>" . t('Date') . "</th><th>" . t('Code') . "</th><th>" . t('Link') . "</th></tr>";
 	
 	if (is_array($codes->VoucherCodeCollection->VoucherCodeItem)) {
@@ -1164,7 +1404,7 @@ function affilinet_GetCategoryList($shopId){
 	
 //	affilinet_print_pre($parents, "Parents");
 	
-	$output = "<table>";
+	$output = "<table> class='affilinet-table'";
 	foreach ($parents[0] as $parent) {
 		$output .= "<tr><td>" . $parent->Title . "</td><td>";
 		if (isset($parents[$parent->CategoryId])) {
